@@ -8,8 +8,8 @@ const fs = require("fs");
 const path = require("path");
 
 async function getAuthPath() {
-  const diskPath = "/data/auth";
-  const localPath = path.join(__dirname, "auth_info");
+  const diskPath = "/data/auth"; // persistent disk path if mounted
+  const localPath = path.join(__dirname, "auth_info"); // fallback path
 
   try {
     await fs.promises.access("/data", fs.constants.W_OK);
@@ -49,6 +49,8 @@ async function startBot() {
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect } = update;
 
+    if (connection) console.log("🔌 Connection Status:", connection);
+
     if (connection === "close") {
       const shouldReconnect =
         lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
@@ -58,23 +60,18 @@ async function startBot() {
       console.log("✅ Bot connected successfully!");
     }
 
-    // 🔑 request pairing code only AFTER socket is open
+    // 🔑 Pairing code if fresh session
     if (!sock.authState.creds.registered && connection === "open") {
+      console.log("🟡 No session found → requesting pairing code...");
       const phoneNumber = process.env.PHONE_NUMBER || "91XXXXXXXXXX";
       try {
         const code = await sock.requestPairingCode(phoneNumber);
         console.log(`📲 Pairing Code for ${phoneNumber}: ${code}`);
       } catch (err) {
-        console.error("❌ Failed to get pairing code, retrying in 5s:", err.message);
-        setTimeout(async () => {
-          try {
-            const code = await sock.requestPairingCode(phoneNumber);
-            console.log(`📲 Pairing Code (retry) for ${phoneNumber}: ${code}`);
-          } catch (err2) {
-            console.error("❌ Still failed:", err2.message);
-          }
-        }, 5000);
+        console.error("❌ Failed to get pairing code:", err.message);
       }
+    } else if (sock.authState.creds.registered) {
+      console.log("🟢 Already logged in, skipping pairing code.");
     }
   });
 
