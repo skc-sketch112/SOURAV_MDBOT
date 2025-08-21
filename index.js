@@ -8,46 +8,7 @@ const pino = require("pino")
 const path = require("path")
 const fs = require("fs")
 
-const PREFIX = "." // 👈 prefix for commands
-
-// 🔌 Plugin loader
-function loadPlugins(sock) {
-    const dir = path.join(__dirname, "plugins")
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir)
-
-    const files = fs.readdirSync(dir).filter(f => f.endsWith(".js"))
-    const plugins = {}
-
-    for (let file of files) {
-        try {
-            const plugin = require(path.join(dir, file))
-            if (typeof plugin === "function") {
-                plugins[file] = plugin
-                console.log(`✅ Plugin loaded: ${file}`)
-            }
-        } catch (e) {
-            console.error(`❌ Failed to load plugin ${file}:`, e)
-        }
-    }
-
-    // 🔁 Watch for file changes and reload automatically
-    fs.watch(dir, (event, filename) => {
-        if (filename && filename.endsWith(".js")) {
-            delete require.cache[require.resolve(path.join(dir, filename))]
-            try {
-                const plugin = require(path.join(dir, filename))
-                if (typeof plugin === "function") {
-                    plugins[filename] = plugin
-                    console.log(`♻️ Plugin reloaded: ${filename}`)
-                }
-            } catch (e) {
-                console.error(`❌ Failed to reload plugin ${filename}:`, e)
-            }
-        }
-    })
-
-    return plugins
-}
+const prefix = "." // ✅ prefix set
 
 async function startBot() {
     const { version } = await fetchLatestBaileysVersion()
@@ -61,9 +22,7 @@ async function startBot() {
         auth: state,
     })
 
-    let plugins = loadPlugins(sock)
-
-    // 📡 Connection updates
+    // Connection handling
     sock.ev.on("connection.update", ({ connection, qr, lastDisconnect }) => {
         if (qr) {
             console.log("📲 Scan this QR to connect:")
@@ -82,36 +41,54 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds)
 
-    // 📩 Message handling
+    // 📩 Listen for messages
     sock.ev.on("messages.upsert", async ({ messages }) => {
         const msg = messages[0]
         if (!msg.message || msg.key.fromMe) return
 
         const sender = msg.key.remoteJid
 
-        // Normalize text
-        let textMessage =
-            msg.message.conversation ||
-            msg.message.extendedTextMessage?.text ||
-            msg.message.imageMessage?.caption ||
-            msg.message.videoMessage?.caption ||
-            ""
+        // ✅ Strong Message Parser
+        let textMessage = ""
+        try {
+            if (msg.message.conversation) {
+                textMessage = msg.message.conversation
+            } else if (msg.message.extendedTextMessage?.text) {
+                textMessage = msg.message.extendedTextMessage.text
+            } else if (msg.message.imageMessage?.caption) {
+                textMessage = msg.message.imageMessage.caption
+            } else if (msg.message.videoMessage?.caption) {
+                textMessage = msg.message.videoMessage.caption
+            } else if (msg.message.documentMessage?.caption) {
+                textMessage = msg.message.documentMessage.caption
+            } else if (msg.message?.ephemeralMessage?.message) {
+                const ephemeral = msg.message.ephemeralMessage.message
+                textMessage =
+                    ephemeral.conversation ||
+                    ephemeral.extendedTextMessage?.text ||
+                    ""
+            }
+        } catch (e) {
+            console.error("❌ Message parsing error:", e)
+        }
 
         textMessage = textMessage.trim()
-        console.log(`💬 Message from ${sender}: ${textMessage}`)
+        console.log(`💬 Message from ${sender}: "${textMessage}"`)
 
-        // ✅ Command check
-        if (!textMessage.startsWith(PREFIX)) return
-        const args = textMessage.slice(PREFIX.length).trim().split(/ +/)
+        // ✅ Prefix Check
+        if (!textMessage.startsWith(prefix)) return
+        const args = textMessage.slice(prefix.length).trim().split(/ +/)
         const command = args.shift().toLowerCase()
 
-        // Run matching plugin
-        for (let file in plugins) {
-            try {
-                await plugins[file](sock, msg, command, args, sender)
-            } catch (e) {
-                console.error(`❌ Error in plugin ${file}:`, e)
-            }
+        // ⚡ Commands
+        if (command === "ping") {
+            await sock.sendMessage(sender, { text: "pong ✅" })
+        }
+
+        if (command === "menu") {
+            await sock.sendMessage(sender, {
+                text: "🤖 *Bot Menu*\n\n1. .ping → pong\n2. .menu → show this menu"
+            })
         }
     })
 }
