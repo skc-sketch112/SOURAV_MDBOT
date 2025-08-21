@@ -1,29 +1,19 @@
 module.exports = {
-    name: "menu", // required
-    command: ["menu", "help"], // aliases
-    description: "Shows all available commands", // description for menu
-
+    name: "menu",
+    command: ["menu", "help"],
+    description: "Show all available commands",
+    
     async execute(sock, m, args, commands) {
-        try {
-            let menuText = `🌟 *Sourav_Bot Command Menu* 🌟\n\n`;
+        let menuText = "📖 *Available Commands:*\n\n";
 
-            // Loop through all commands
-            for (let [cmdName, cmdObj] of commands.entries()) {
-                menuText += `👉 .${cmdName} — ${cmdObj.description || "No description"}\n`;
-            }
-
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: menuText },
-                { quoted: m }
-            );
-        } catch (err) {
-            console.error("❌ Error in menu command:", err);
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: "⚠️ Failed to load menu. Please try again later." },
-                { quoted: m }
-            );
+        for (let plugin of commands.values()) {
+            menuText += `✨ *${plugin.name}* → .${plugin.command[0]}\n`;
         }
+
+        await sock.sendMessage(
+            m.key.remoteJid,
+            { text: menuText },
+            { quoted: m }
+        );
     }
 };
