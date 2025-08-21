@@ -40,7 +40,7 @@ module.exports = {
         `;
 
         await sock.sendMessage(sender, {
-            image: { url: "https://files.catbox.moe/h6ecol.jpg" }, // 🔥 Replace with your own banner
+            image: { url: "https://files.catbox.moe/1ehy5a.jpg" }, // 🔥 Replace with your own banner
             caption: menuText
         });
     }
