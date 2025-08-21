@@ -9,7 +9,7 @@
     "dev": "nodemon index.js"
   },
   "dependencies": {
-    node-fetch": "^2.6.7",
+    "node-fetch": "^2.6.7",
     "google-tts-api": "^2.0.2",
     "@whiskeysockets/baileys": "^6.7.5",
     "pino": "^8.15.0",
