@@ -1,6 +1,7 @@
 const axios = require("axios");
 
-const UNSPLASH_ACCESS_KEY = "Uebb0QGhkVela_0V0ZidmqYXDqAEHRYpV2UnemVHgLY"; // 🔑 Put your actual key here
+// 🔑 Replace this with your real Unsplash API key
+const UNSPLASH_ACCESS_KEY = "Uebb0QGhkVela_0V0ZidmqYXDqAEHRYpV2UnemVHgLY";
 
 module.exports = {
     name: "img",
@@ -10,7 +11,17 @@ module.exports = {
         const query = args.join(" ");
 
         if (!query) {
-            await sock.sendMessage(sender, { text: "❌ Please provide a search term.\nExample: `.img cat`" });
+            await sock.sendMessage(sender, {
+                text: "❌ Please provide a search term.\n👉 Example: `.img cat`"
+            });
+            return;
+        }
+
+        // ✅ Check if API key is set
+        if (!UNSPLASH_ACCESS_KEY || UNSPLASH_ACCESS_KEY === "const UNSPLASH_ACCESS_KEY = "Uebb0QGhkVela_0V0ZidmqYXDqAEHRYpV2UnemVHgLY") {
+            await sock.sendMessage(sender, {
+                text: "⚠️ Unsplash API key is missing!\nPlease set it in `img.js` before using this command."
+            });
             return;
         }
 
@@ -18,22 +29,27 @@ module.exports = {
             const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=10&client_id=${UNSPLASH_ACCESS_KEY}`;
             const response = await axios.get(url);
 
-            if (!response.data.results || response.data.results.length === 0) {
-                await sock.sendMessage(sender, { text: `⚠️ No images found for: *${query}*` });
+            const results = response.data.results;
+            if (!results || results.length === 0) {
+                await sock.sendMessage(sender, {
+                    text: `⚠️ No images found for: *${query}*`
+                });
                 return;
             }
 
-            // Send each image (up to 10)
-            for (let i = 0; i < response.data.results.length; i++) {
-                const img = response.data.results[i];
+            // ✅ Send up to 10 images
+            for (let i = 0; i < results.length; i++) {
+                const img = results[i];
                 await sock.sendMessage(sender, {
                     image: { url: img.urls.regular },
-                    caption: `📸 *${query}* (Result ${i + 1})\nBy: ${img.user.name} (@${img.user.username})`
+                    caption: `📸 *${query}* (Result ${i + 1})\n👤 By: ${img.user.name} (@${img.user.username || "unknown"})`
                 });
             }
         } catch (error) {
-            console.error("❌ Error in img.js:", error);
-            await sock.sendMessage(sender, { text: "⚠️ Failed to fetch images. Please try again later." });
+            console.error("❌ Error in img.js:", error.message || error);
+            await sock.sendMessage(sender, {
+                text: "⚠️ Failed to fetch images from Unsplash. Try again later."
+            });
         }
     }
 };
