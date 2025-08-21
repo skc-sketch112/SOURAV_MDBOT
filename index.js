@@ -6,6 +6,25 @@ const {
 } = require("@whiskeysockets/baileys")
 const pino = require("pino")
 const path = require("path")
+const fs = require("fs")
+
+// 🔌 Plugin loader
+function loadPlugins() {
+    const plugins = {}
+    const dir = path.join(__dirname, "plugins")
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir)
+
+    const files = fs.readdirSync(dir).filter(f => f.endsWith(".js"))
+    for (const file of files) {
+        delete require.cache[require.resolve(path.join(dir, file))]
+        const plugin = require(path.join(dir, file))
+        if (plugin.command && plugin.handler) {
+            plugins[plugin.command] = plugin.handler
+            console.log(`✅ Plugin loaded: ${plugin.command}`)
+        }
+    }
+    return plugins
+}
 
 async function startBot() {
     const { version } = await fetchLatestBaileysVersion()
@@ -15,56 +34,51 @@ async function startBot() {
     const sock = makeWASocket({
         version,
         logger: pino({ level: "silent" }),
-        printQRInTerminal: true,
+        printQRInTerminal: false,
         auth: state,
     })
 
-    // Connection handling
+    let plugins = loadPlugins()
+
+    // 🔄 Connection events
     sock.ev.on("connection.update", ({ connection, qr, lastDisconnect }) => {
         if (qr) {
-            console.log("📲 Scan this QR to connect:")
+            console.log("📲 Scan QR to connect:")
             console.log(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`)
         }
-
         if (connection === "close") {
             const shouldReconnect =
                 lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
             console.log("❌ Connection closed. Reconnect:", shouldReconnect)
             if (shouldReconnect) startBot()
         } else if (connection === "open") {
-            console.log("✅ Connected to WhatsApp!")
+            console.log("✅ Bot Connected!")
         }
     })
 
     sock.ev.on("creds.update", saveCreds)
 
-    // 📩 Listen for messages
+    // 📩 Message handler
     sock.ev.on("messages.upsert", async ({ messages }) => {
         const msg = messages[0]
         if (!msg.message || msg.key.fromMe) return
 
         const sender = msg.key.remoteJid
-
-        // Normalize text (works for normal, reply, caption)
-        let textMessage =
+        let text =
             msg.message.conversation ||
             msg.message.extendedTextMessage?.text ||
             msg.message.imageMessage?.caption ||
             msg.message.videoMessage?.caption ||
             ""
+        text = text.trim().toLowerCase()
+        console.log(`💬 ${sender}: ${text}`)
 
-        textMessage = textMessage.trim().toLowerCase()
-        console.log(`💬 Message from ${sender}: ${textMessage}`)
-
-        // ⚡ Commands
-        if (textMessage === "ping") {
-            await sock.sendMessage(sender, { text: "pong ✅" })
-        }
-
-        if (textMessage === "menu") {
-            await sock.sendMessage(sender, {
-                text: "🤖 *Bot Menu*\n\n1. ping → pong\n2. menu → show this menu"
-            })
+        if (plugins[text]) {
+            try {
+                await plugins[text](sock, sender, msg)
+            } catch (e) {
+                console.error("⚠️ Plugin error:", e)
+            }
         }
     })
 }
