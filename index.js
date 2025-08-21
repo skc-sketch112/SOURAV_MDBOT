@@ -14,20 +14,16 @@ const commands = new Map()
 function loadPlugins() {
   commands.clear()
   const pluginsDir = path.join(__dirname, "plugins")
-  if (!fs.existsSync(pluginsDir)) {
-    fs.mkdirSync(pluginsDir)
-    console.log("📂 'plugins' folder created. Add your plugin files inside it!")
-  }
+  if (!fs.existsSync(pluginsDir)) fs.mkdirSync(pluginsDir)
+
   fs.readdirSync(pluginsDir).forEach(file => {
     if (file.endsWith(".js")) {
       try {
-        delete require.cache[require.resolve(path.join(pluginsDir, file))] // hot reload
+        delete require.cache[require.resolve(path.join(pluginsDir, file))]
         const cmd = require(path.join(pluginsDir, file))
         if (cmd && cmd.name && typeof cmd.execute === "function") {
           commands.set(cmd.name.toLowerCase(), cmd)
           console.log(`✅ Loaded plugin: ${cmd.name}`)
-        } else {
-          console.log(`⚠️ Skipped invalid plugin: ${file}`)
         }
       } catch (err) {
         console.error(`❌ Error loading plugin ${file}:`, err.message)
@@ -53,7 +49,7 @@ async function startBot() {
   // 🔄 Connection handling
   sock.ev.on("connection.update", ({ connection, qr, lastDisconnect }) => {
     if (qr) {
-      console.log("📲 Scan this QR to connect:")
+      console.log("📲 Scan QR to connect:")
       console.log(
         `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`
       )
@@ -70,19 +66,26 @@ async function startBot() {
 
   sock.ev.on("creds.update", saveCreds)
 
-  // 📩 Handle messages
-  sock.ev.on("messages.upsert", async ({ messages }) => {
+  // 📩 Handle messages (stable version)
+  sock.ev.on("messages.upsert", async ({ messages, type }) => {
+    if (type !== "notify") return  // ⚡ FIX: only process real chats
     const msg = messages[0]
     if (!msg || msg.key.fromMe) return
 
     const sender = msg.key.remoteJid
+
+    // normalize text
     let textMessage =
       msg.message?.conversation ||
       msg.message?.extendedTextMessage?.text ||
       msg.message?.imageMessage?.caption ||
       msg.message?.videoMessage?.caption ||
+      msg.message?.buttonsResponseMessage?.selectedButtonId ||
+      msg.message?.listResponseMessage?.singleSelectReply?.selectedRowId ||
       ""
+
     textMessage = textMessage.trim()
+    if (!textMessage) return
 
     console.log(`💬 ${sender}: ${textMessage}`)
 
