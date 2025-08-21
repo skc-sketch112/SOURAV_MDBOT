@@ -8,8 +8,8 @@ const fs = require("fs");
 const path = require("path");
 
 async function getAuthPath() {
-  const diskPath = "/data/auth"; // persistent disk path if mounted
-  const localPath = path.join(__dirname, "auth_info"); // fallback path
+  const diskPath = "/data/auth"; 
+  const localPath = path.join(__dirname, "auth_info");
 
   try {
     await fs.promises.access("/data", fs.constants.W_OK);
@@ -60,13 +60,16 @@ async function startBot() {
       console.log("✅ Bot connected successfully!");
     }
 
-    // 🔑 Pairing code if fresh session
+    // 🔑 Pairing code request
     if (!sock.authState.creds.registered && connection === "open") {
       console.log("🟡 No session found → requesting pairing code...");
       const phoneNumber = process.env.PHONE_NUMBER || "91XXXXXXXXXX";
       try {
         const code = await sock.requestPairingCode(phoneNumber);
         console.log(`📲 Pairing Code for ${phoneNumber}: ${code}`);
+        console.log(
+          `🔗 Open this link on your phone to pair: https://wa.me/pair/${code}`
+        );
       } catch (err) {
         console.error("❌ Failed to get pairing code:", err.message);
       }
