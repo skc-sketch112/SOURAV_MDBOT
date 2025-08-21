@@ -1,15 +1,15 @@
 {
   "name": "whatsapp-userbot",
   "version": "1.0.0",
-  "description": "WhatsApp userbot using Baileys on Render",
   "main": "index.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.5",
-    "pino": "^9.0.0",
-    "qrcode-terminal": "^0.12.0",
-    "fs-extra": "^11.2.0"
+    "express": "^4.18.2",
+    "qrcode": "^1.5.3",
+    "pino": "^8.15.0"
   }
 }
