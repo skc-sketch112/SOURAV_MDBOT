@@ -8,7 +8,7 @@ const pino = require("pino");
 const fs = require("fs");
 const path = require("path");
 
-// ✅ Load plugins into a Map
+// ✅ Load all plugins into a Command Map
 const commands = new Map();
 
 fs.readdirSync(path.join(__dirname, "plugins")).forEach(file => {
@@ -16,12 +16,13 @@ fs.readdirSync(path.join(__dirname, "plugins")).forEach(file => {
         try {
             const plugin = require(`./plugins/${file}`);
             if (plugin.name && plugin.command && plugin.execute) {
-                plugin.command.forEach(cmd => {
-                    commands.set(cmd.toLowerCase(), plugin);
+                // Register each alias
+                plugin.command.forEach(alias => {
+                    commands.set(alias.toLowerCase(), plugin);
                 });
                 console.log(`✅ Loaded plugin: ${plugin.name} [${plugin.command.join(", ")}]`);
             } else {
-                console.log(`⚠️ Skipped ${file}: missing name/command/execute`);
+                console.log(`⚠️ Skipped ${file}: Missing name/command/execute`);
             }
         } catch (err) {
             console.error(`❌ Failed to load plugin ${file}:`, err);
@@ -38,7 +39,7 @@ async function startBot() {
         auth: state,
     });
 
-    // ✅ QR code handler with link
+    // ✅ QR Code link
     sock.ev.on("connection.update", (update) => {
         const { connection, qr } = update;
         if (qr) {
@@ -72,24 +73,25 @@ async function startBot() {
             m.message.extendedTextMessage?.text ||
             "";
 
-        if (!body.startsWith(".")) return; // prefix = "."
+        if (!body.startsWith(".")) return; // prefix = .
 
-        let [cmd, ...args] = body.slice(1).trim().split(/\s+/);
-        cmd = cmd.toLowerCase();
+        // Split into command + args
+        let args = body.slice(1).trim().split(/\s+/);
+        let cmd = args.shift().toLowerCase();
 
-        // ✅ Direct command lookup
-        const plugin = commands.get(cmd);
+        // Find command from map
+        let command = commands.get(cmd);
 
-        if (plugin) {
+        if (command) {
             try {
-                await plugin.execute(sock, m, args);
-                console.log(`⚡ Executed: ${cmd}`);
+                await command.execute(sock, m, args);
+                console.log(`⚡ Command executed: ${cmd}`);
             } catch (err) {
-                console.error(`❌ Error in ${cmd}:`, err);
-                await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Error while executing command." });
+                console.error(`❌ Error in command ${cmd}:`, err);
+                await sock.sendMessage(m.key.remoteJid, { text: `⚠️ Error while executing: ${cmd}` }, { quoted: m });
             }
         } else {
-            console.log(`⚠️ Unknown command: ${cmd}`);
+            await sock.sendMessage(m.key.remoteJid, { text: `⚠️ Command not found: ${cmd}` }, { quoted: m });
         }
     });
 }
