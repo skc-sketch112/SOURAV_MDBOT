@@ -1,30 +1,45 @@
-// plugins/emoji.js
 module.exports = {
-    name: "emoji",
-    command: ["emoji"],
-    async execute(sock, m, args) {
+    name: "fruit",
+    command: ["fruit", "fruits"],
+    execute: async (sock, m, args) => {
         try {
-            const emojis = {
-                smile: "😀😁😂🤣😃😄😅😆😉😊",
-                love: "😍🥰😘😗😙😚😋😛😜🤪",
-                cool: "😎🤓🧐😏😒😞😔😟😕🙁",
-                sad: "😮😯😲😳🥺😢😭😤😠😡",
-                hands: "👍👌🤙🤞✌️🤟👏🙌🙏🤝"
+            const fruitMap = {
+                apple: "🍎 Apple",
+                banana: "🍌 Banana",
+                grapes: "🍇 Grapes",
+                watermelon: "🍉 Watermelon",
+                mango: "🥭 Mango",
+                pineapple: "🍍 Pineapple",
+                peach: "🍑 Peach",
+                cherries: "🍒 Cherries",
+                coconut: "🥥 Coconut",
+                strawberry: "🍓 Strawberry"
             };
 
-            if (!args[0]) {
-                await sock.sendMessage(m.key.remoteJid, {
-                    text: "✨ Emoji Menu ✨\n\n.smile\n.love\n.cool\n.sad\n.hands\n\nUse: .emoji <type>"
-                });
-                return;
+            let response;
+
+            if (args.length === 0) {
+                // Show full fruit menu
+                const list = Object.values(fruitMap).map(f => `👉 ${f}`).join("\n");
+                response = `🍓 *Fruit Menu* 🍓\n\n${list}`;
+            } else {
+                // Show single fruit if it exists
+                const query = args[0].toLowerCase();
+                response = fruitMap[query] || `⚠️ Fruit "${query}" not found!`;
             }
 
-            let choice = args[0].toLowerCase();
-            let reply = emojis[choice] || "⚠️ Unknown option! Try: .emoji smile/love/cool/sad/hands";
-
-            await sock.sendMessage(m.key.remoteJid, { text: reply }, { quoted: m });
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { text: response },
+                { quoted: m }
+            );
         } catch (err) {
-            console.log("❌ Emoji error:", err);
+            console.error("❌ Error in fruit.js:", err);
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { text: "⚠️ Something went wrong in fruit command!" },
+                { quoted: m }
+            );
         }
     }
 };
