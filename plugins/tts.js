@@ -1,30 +1,29 @@
-const googleTTS = require("google-tts-api")
+const googleTTS = require("google-tts-api");
 
 module.exports = {
     name: "tts",
     description: "Convert text to speech",
-    execute: async (sock, msg, sender, args) => {
+    execute: async (sock, msg, args) => {
         try {
-            if (!args[0]) {
-                await sock.sendMessage(sender, { text: "❌ Please provide text.\n\nExample: `.tts Hello world`" })
-                return
+            if (!args.length) {
+                await sock.sendMessage(msg.key.remoteJid, { text: "❌ Please provide text. Example: *.tts hello*" });
+                return;
             }
 
-            const text = args.join(" ")
+            const text = args.join(" ");
             const url = googleTTS.getAudioUrl(text, {
-                lang: "en", // 🌍 Change language code if needed (hi, bn, es, etc.)
+                lang: "en",
                 slow: false,
                 host: "https://translate.google.com",
-            })
+            });
 
-            await sock.sendMessage(sender, {
+            await sock.sendMessage(msg.key.remoteJid, {
                 audio: { url: url },
-                mimetype: "audio/mp4",
-                ptt: true, // 🎤 Sends as voice note
-            })
-        } catch (e) {
-            console.error("TTS Error:", e)
-            await sock.sendMessage(sender, { text: "❌ Failed to generate speech." })
+                mimetype: "audio/mp4"
+            });
+        } catch (err) {
+            console.error("TTS Error:", err);
+            await sock.sendMessage(msg.key.remoteJid, { text: "⚠️ Failed to generate speech." });
         }
     }
-}
+};
