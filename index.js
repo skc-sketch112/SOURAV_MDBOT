@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 
 async function getAuthPath() {
-  const diskPath = "/data/auth"; 
+  const diskPath = "/data/auth";
   const localPath = path.join(__dirname, "auth_info");
 
   try {
@@ -40,7 +40,8 @@ async function startBot() {
   const sock = makeWASocket({
     logger: pino({ level: "silent" }),
     printQRInTerminal: false,
-    auth: state
+    auth: state,
+    browser: ["RenderBot", "Chrome", "1.0"] // spoof browser for stability
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -53,25 +54,4 @@ async function startBot() {
         lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       console.log("❌ Disconnected:", lastDisconnect?.error);
       if (shouldReconnect) startBot();
-    } else if (connection === "open") {
-      console.log("✅ Bot connected successfully!");
-    }
-
-    // 🔑 Only request pairing code when disconnected and not registered
-    if (update.qr) {
-      console.log("⚠️ QR code login is disabled here. Use pairing code.");
-    } else if (!sock.authState.creds.registered && connection === "connecting") {
-      const phoneNumber = process.env.PHONE_NUMBER || "91XXXXXXXXXX";
-      try {
-        const code = await sock.requestPairingCode(phoneNumber);
-        console.log(`📲 Pairing Code for ${phoneNumber}: ${code}`);
-      } catch (err) {
-        console.error("❌ Failed to get pairing code:", err.message);
-      }
-    }
-  });
-
-  loadPlugins(sock);
-}
-
-startBot();
+    } else if (connection ===
