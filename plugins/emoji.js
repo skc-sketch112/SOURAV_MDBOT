@@ -1,39 +1,30 @@
 // plugins/emoji.js
 module.exports = {
     name: "emoji",
-    description: "Send fun emojis",
-    command: ["emoji", "emojis"],
+    command: ["emoji"],
     async execute(sock, m, args) {
         try {
-            const emojis = [
-                "😀😁😂🤣😃😄😅😆😉😊",
-                "😍🥰😘😗😙😚😋😛😜🤪",
-                "😎🤓🧐😏😒😞😔😟😕🙁",
-                "😮😯😲😳🥺😢😭😤😠😡",
-                "👍👌🤙🤞✌️🤟👏🙌🙏🤝"
-            ];
+            const emojis = {
+                smile: "😀😁😂🤣😃😄😅😆😉😊",
+                love: "😍🥰😘😗😙😚😋😛😜🤪",
+                cool: "😎🤓🧐😏😒😞😔😟😕🙁",
+                sad: "😮😯😲😳🥺😢😭😤😠😡",
+                hands: "👍👌🤙🤞✌️🤟👏🙌🙏🤝"
+            };
 
             if (!args[0]) {
                 await sock.sendMessage(m.key.remoteJid, {
-                    text: `✨ Emoji Menu ✨\n\n1. smile\n2. love\n3. cool\n4. sad\n5. hands\n\nUse: .emoji <name>`
+                    text: "✨ Emoji Menu ✨\n\n.smile\n.love\n.cool\n.sad\n.hands\n\nUse: .emoji <type>"
                 });
                 return;
             }
 
-            let type = args[0].toLowerCase();
-            let text = "";
+            let choice = args[0].toLowerCase();
+            let reply = emojis[choice] || "⚠️ Unknown option! Try: .emoji smile/love/cool/sad/hands";
 
-            if (type === "smile") text = emojis[0];
-            else if (type === "love") text = emojis[1];
-            else if (type === "cool") text = emojis[2];
-            else if (type === "sad") text = emojis[3];
-            else if (type === "hands") text = emojis[4];
-            else text = "⚠️ Unknown option! Try: .emoji smile/love/cool/sad/hands";
-
-            await sock.sendMessage(m.key.remoteJid, { text });
-        } catch (e) {
-            console.error("Emoji plugin error:", e);
-            await sock.sendMessage(m.key.remoteJid, { text: "❌ Error sending emojis." });
+            await sock.sendMessage(m.key.remoteJid, { text: reply }, { quoted: m });
+        } catch (err) {
+            console.log("❌ Emoji error:", err);
         }
     }
 };
