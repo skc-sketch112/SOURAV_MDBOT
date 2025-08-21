@@ -8,23 +8,44 @@ const pino = require("pino")
 const path = require("path")
 const fs = require("fs")
 
-// 🔹 Prefix for commands
-const PREFIX = "."
+const PREFIX = "." // 👈 prefix for commands
 
-function loadPlugins() {
-    const plugins = {}
+// 🔌 Plugin loader
+function loadPlugins(sock) {
     const dir = path.join(__dirname, "plugins")
     if (!fs.existsSync(dir)) fs.mkdirSync(dir)
 
     const files = fs.readdirSync(dir).filter(f => f.endsWith(".js"))
-    for (const file of files) {
-        delete require.cache[require.resolve(path.join(dir, file))]
-        const plugin = require(path.join(dir, file))
-        if (plugin.command && plugin.handler) {
-            plugins[plugin.command] = plugin.handler
-            console.log(`✅ Loaded plugin: ${plugin.command}`)
+    const plugins = {}
+
+    for (let file of files) {
+        try {
+            const plugin = require(path.join(dir, file))
+            if (typeof plugin === "function") {
+                plugins[file] = plugin
+                console.log(`✅ Plugin loaded: ${file}`)
+            }
+        } catch (e) {
+            console.error(`❌ Failed to load plugin ${file}:`, e)
         }
     }
+
+    // 🔁 Watch for file changes and reload automatically
+    fs.watch(dir, (event, filename) => {
+        if (filename && filename.endsWith(".js")) {
+            delete require.cache[require.resolve(path.join(dir, filename))]
+            try {
+                const plugin = require(path.join(dir, filename))
+                if (typeof plugin === "function") {
+                    plugins[filename] = plugin
+                    console.log(`♻️ Plugin reloaded: ${filename}`)
+                }
+            } catch (e) {
+                console.error(`❌ Failed to reload plugin ${filename}:`, e)
+            }
+        }
+    })
+
     return plugins
 }
 
@@ -40,13 +61,15 @@ async function startBot() {
         auth: state,
     })
 
-    let plugins = loadPlugins()
+    let plugins = loadPlugins(sock)
 
+    // 📡 Connection updates
     sock.ev.on("connection.update", ({ connection, qr, lastDisconnect }) => {
         if (qr) {
-            console.log("📲 Scan this QR:")
+            console.log("📲 Scan this QR to connect:")
             console.log(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`)
         }
+
         if (connection === "close") {
             const shouldReconnect =
                 lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
@@ -59,37 +82,36 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds)
 
-    // 📩 Listen for messages
+    // 📩 Message handling
     sock.ev.on("messages.upsert", async ({ messages }) => {
         const msg = messages[0]
         if (!msg.message || msg.key.fromMe) return
 
         const sender = msg.key.remoteJid
 
-        let text =
+        // Normalize text
+        let textMessage =
             msg.message.conversation ||
             msg.message.extendedTextMessage?.text ||
             msg.message.imageMessage?.caption ||
             msg.message.videoMessage?.caption ||
             ""
 
-        text = text.trim()
-        console.log(`💬 Message from ${sender}: "${text}"`)
+        textMessage = textMessage.trim()
+        console.log(`💬 Message from ${sender}: ${textMessage}`)
 
-        // ✅ Only respond if starts with prefix
-        if (!text.startsWith(PREFIX)) return
+        // ✅ Command check
+        if (!textMessage.startsWith(PREFIX)) return
+        const args = textMessage.slice(PREFIX.length).trim().split(/ +/)
+        const command = args.shift().toLowerCase()
 
-        const command = text.slice(PREFIX.length).toLowerCase()
-
-        if (plugins[command]) {
-            console.log(`⚡ Running plugin: ${command}`)
+        // Run matching plugin
+        for (let file in plugins) {
             try {
-                await plugins[command](sock, sender, msg)
+                await plugins[file](sock, msg, command, args, sender)
             } catch (e) {
-                console.error("❌ Plugin error:", e)
+                console.error(`❌ Error in plugin ${file}:`, e)
             }
-        } else {
-            console.log("⚠️ No plugin found for:", command)
         }
     })
 }
