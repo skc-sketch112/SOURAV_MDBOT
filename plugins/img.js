@@ -1,7 +1,7 @@
 const axios = require("axios");
 
-// 🔑 Replace this with your real Unsplash API key
-const UNSPLASH_ACCESS_KEY = "Uebb0QGhkVela_0V0ZidmqYXDqAEHRYpV2UnemVHgLY";
+// 🔑 Get Unsplash API Key from environment variable (.env file)
+const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_KEY;
 
 module.exports = {
     name: "img",
@@ -18,38 +18,13 @@ module.exports = {
         }
 
         // ✅ Check if API key is set
-        if (!UNSPLASH_ACCESS_KEY || UNSPLASH_ACCESS_KEY === "const UNSPLASH_ACCESS_KEY = "Uebb0QGhkVela_0V0ZidmqYXDqAEHRYpV2UnemVHgLY") {
+        if (!UNSPLASH_ACCESS_KEY) {
             await sock.sendMessage(sender, {
-                text: "⚠️ Unsplash API key is missing!\nPlease set it in `img.js` before using this command."
+                text: "⚠️ Unsplash API key missing! Please set `UNSPLASH_KEY` in your `.env` file."
             });
             return;
         }
 
         try {
             const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=10&client_id=${UNSPLASH_ACCESS_KEY}`;
-            const response = await axios.get(url);
-
-            const results = response.data.results;
-            if (!results || results.length === 0) {
-                await sock.sendMessage(sender, {
-                    text: `⚠️ No images found for: *${query}*`
-                });
-                return;
-            }
-
-            // ✅ Send up to 10 images
-            for (let i = 0; i < results.length; i++) {
-                const img = results[i];
-                await sock.sendMessage(sender, {
-                    image: { url: img.urls.regular },
-                    caption: `📸 *${query}* (Result ${i + 1})\n👤 By: ${img.user.name} (@${img.user.username || "unknown"})`
-                });
-            }
-        } catch (error) {
-            console.error("❌ Error in img.js:", error.message || error);
-            await sock.sendMessage(sender, {
-                text: "⚠️ Failed to fetch images from Unsplash. Try again later."
-            });
-        }
-    }
-};
+            const response =
