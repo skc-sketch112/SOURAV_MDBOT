@@ -1,47 +1,29 @@
 module.exports = {
-    name: "menu",
-    description: "Shows Sourav Bot Premium Menu",
-    execute: async (sock, msg, sender) => {
-        const menuText = `
-╭─❏ *🤖 SOURAV_BOT 🤖* ❏─╮
-│
-│ 📌 𝙐𝙇𝙏𝙄𝙈𝘼𝙏𝙀 𝘽𝙊𝙏 𝙈𝙀𝙉𝙐
-│─────────────────────
-│ 👑 Owner: Sourav
-│ 📚 Library: Baileys MD
-│ 💻 Runtime: Node.js
-│ 🚀 Platform: Heroku
-│─────────────────────
-│
-│ 🎉 *FUN COMMANDS*
-│ ───────────────
-│ ✧ .joke → Random joke
-│ ✧ .meme → Random meme
-│ ✧ .quote → Inspirational quote
-│
-│ ⚡ *UTILITY COMMANDS*
-│ ───────────────
-│ ✧ .ping → pong ✅
-│ ✧ .menu → show this menu 📖
-│ ✧ .help → guide
-│
-│ 👑 *OWNER COMMANDS*
-│ ───────────────
-│ ✧ .restart → Restart bot
-│ ✧ .block [user] → Block user
-│ ✧ .unblock [user] → Unblock user
-│
-│ 🤖 *AI COMMANDS*
-│ ───────────────
-│ ✧ .ai [prompt] → Ask AI anything
-│ ✧ .img [prompt] → Generate AI image
-│
-╰─────────────────────❏
-        `;
+    name: "menu", // required
+    command: ["menu", "help"], // aliases
+    description: "Shows all available commands", // description for menu
 
-        await sock.sendMessage(sender, {
-            image: { url: "https://files.catbox.moe/1ehy5a.jpg" }, // 🔥 Replace with your own banner
-            caption: menuText
-        });
+    async execute(sock, m, args, commands) {
+        try {
+            let menuText = `🌟 *Sourav_Bot Command Menu* 🌟\n\n`;
+
+            // Loop through all commands
+            for (let [cmdName, cmdObj] of commands.entries()) {
+                menuText += `👉 .${cmdName} — ${cmdObj.description || "No description"}\n`;
+            }
+
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { text: menuText },
+                { quoted: m }
+            );
+        } catch (err) {
+            console.error("❌ Error in menu command:", err);
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { text: "⚠️ Failed to load menu. Please try again later." },
+                { quoted: m }
+            );
+        }
     }
 };
