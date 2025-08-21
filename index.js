@@ -2,7 +2,8 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  getContentType
 } = require("@whiskeysockets/baileys")
 const pino = require("pino")
 const path = require("path")
@@ -17,18 +18,15 @@ async function startBot() {
   const sock = makeWASocket({
     version,
     logger: pino({ level: "silent" }),
-    printQRInTerminal: true, // still prints QR in logs
+    printQRInTerminal: true,
     auth: state,
   })
 
-  // Handle connection
   sock.ev.on("connection.update", ({ connection, qr, lastDisconnect }) => {
     if (qr) {
-      console.log("📲 Scan QR to connect:")
+      console.log("📲 Scan QR here:")
       console.log(
-        `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
-          qr
-        )}`
+        `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`
       )
     }
 
@@ -44,30 +42,29 @@ async function startBot() {
 
   sock.ev.on("creds.update", saveCreds)
 
-  // Listen for messages
-  sock.ev.on("messages.upsert", async ({ messages, type }) => {
-    if (type !== "notify") return
+  // 📩 Handle all messages
+  sock.ev.on("messages.upsert", async ({ messages }) => {
     const msg = messages[0]
-    if (!msg.message || msg.key.fromMe) return
+    if (!msg || msg.key.fromMe) return
 
     const sender = msg.key.remoteJid
+    const type = getContentType(msg.message) // Detect message type
+    let textMessage = ""
 
-    // Get text from message (different formats)
-    let textMessage =
-      msg.message.conversation ||
-      msg.message.extendedTextMessage?.text ||
-      msg.message.imageMessage?.caption ||
-      msg.message.videoMessage?.caption ||
-      ""
+    if (type === "conversation") textMessage = msg.message.conversation
+    else if (type === "extendedTextMessage") textMessage = msg.message.extendedTextMessage.text
+    else if (type === "imageMessage") textMessage = msg.message.imageMessage.caption
+    else if (type === "videoMessage") textMessage = msg.message.videoMessage.caption
+    else if (type === "ephemeralMessage")
+      textMessage = msg.message.ephemeralMessage.message?.extendedTextMessage?.text
 
-    textMessage = textMessage.trim()
+    textMessage = (textMessage || "").trim()
+    console.log(`💬 From ${sender}: ${textMessage}`)
 
     if (!textMessage.startsWith(PREFIX)) return
     const command = textMessage.slice(1).toLowerCase()
 
-    console.log(`💬 Command from ${sender}: ${command}`)
-
-    // Commands
+    // ⚡ Commands
     if (command === "ping") {
       await sock.sendMessage(sender, { text: "pong ✅" })
     }
