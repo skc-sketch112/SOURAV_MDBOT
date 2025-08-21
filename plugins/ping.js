@@ -1,7 +1,7 @@
 module.exports = {
     name: "ping",
-    description: "Replies with pong",
-    execute: async (sock, msg, sender) => {
-        await sock.sendMessage(sender, { text: "pong ✅ SOURAV_MD V4.08.09✨" });
+    command: ["ping"],
+    execute: async (sock, m, args) => {
+        await sock.sendMessage(m.key.remoteJid, { text: "🏓 Pong!SOURAV_MD V4.08.09✨✨⚡" }, { quoted: m });
     }
 };
