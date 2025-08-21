@@ -1,35 +1,95 @@
+const os = require("os");
 const fs = require("fs");
 const path = require("path");
 
 module.exports = {
     name: "menu",
     command: ["menu", "help"],
-    description: "Show all available commands",
+    description: "Show the bot menu",
 
-    async execute(sock, m) {
+    execute: async (sock, m) => {
         try {
-            // Read all plugin files
-            const pluginFiles = fs.readdirSync(path.join(__dirname));
+            // Bot Info
+            const owner = "SOURAV_MD";
+            const botName = "SOURAV_MD V4.08.09";
+            const version = "4.08.09";
+            const prefix = ".";
+            const mode = "Public";
 
-            let menuText = "📖 *Available Commands:*\n\n";
+            // Time & Date
+            const date = new Date();
+            const time = date.toLocaleTimeString("en-GB", { hour12: false });
+            const day = date.toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+            });
 
-            for (let file of pluginFiles) {
-                if (file.endsWith(".js") && file !== "menu.js") {
-                    try {
-                        const plugin = require(path.join(__dirname, file));
-                        if (plugin && plugin.name && plugin.command) {
-                            menuText += `✨ *${plugin.name}* → .${plugin.command[0]}\n`;
-                        }
-                    } catch (err) {
-                        console.log(`⚠️ Skipped ${file}:`, err.message);
-                    }
-                }
+            // Timezone
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
+
+            // Speed test
+            const start = Date.now();
+            const end = Date.now();
+            const speed = end - start;
+
+            // Uptime
+            const uptime = process.uptime();
+            const uptimeStr = `${Math.floor(uptime / 60)}m ${Math.floor(uptime % 60)}s`;
+
+            // Total Commands (auto count plugins)
+            let commandsCount = 0;
+            try {
+                const pluginsPath = path.join(__dirname);
+                const files = fs.readdirSync(pluginsPath).filter(file => file.endsWith(".js"));
+                commandsCount = files.length;
+            } catch (e) {
+                commandsCount = "N/A";
             }
 
-            await sock.sendMessage(m.key.remoteJid, { text: menuText }, { quoted: m });
+            // Menu Message
+            const menuText = `
+┏━━━━━━━━━━━━━━━━━━━┓
+       ✦ ${SOURAV_MD} ✦
+┗━━━━━━━━━━━━━━━━━━━┛
+
+👑 Owner      : ${owner}
+💎 Version    : ${version}
+📋 Commands   : ${commandsCount}
+📝 Prefix     : [ ${prefix} ]
+🔐 Mode       : ${mode}
+⏰ Time       : ${time}
+🌍 Timezone   : ${timezone}
+🚀 Speed      : ${speed} ms
+🟢 Uptime     : ${uptimeStr}
+📅 Date       : ${day}
+
+┏━━━━━━━━━━━━━━━━━━━┓
+      🔥 Command Categories 🔥
+┗━━━━━━━━━━━━━━━━━━━┛
+📖 Quran, Gita, Hanuman Chalisa
+🎮 Games, Fun, Dice, RPS
+🛠️ Tools, TTS, Image Search
+❤️ Emoji Packs & More!
+`;
+
+            // Logo (replace with your own image URL or path)
+            const logoUrl = "https://files.catbox.moe/1ehy5a.jpg"; // Example hosted logo
+
+            await sock.sendMessage(m.key.remoteJid, { text: "⏳ Loading menu..." }, { quoted: m });
+
+            await sock.sendMessage(
+                m.key.remoteJid,
+                {
+                    image: { url: logoUrl },
+                    caption: menuText,
+                },
+                { quoted: m }
+            );
+
         } catch (err) {
-            console.error("❌ Error in menu.js:", err);
-            await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Failed to load menu. Please try again later." }, { quoted: m });
+            console.error("Menu Error:", err);
+            await sock.sendMessage(m.key.remoteJid, { text: "❌ Failed to load menu, please try again later." }, { quoted: m });
         }
     }
 };
