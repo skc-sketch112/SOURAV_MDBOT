@@ -15,28 +15,19 @@ async function startBot() {
     const sock = makeWASocket({
         version,
         logger: pino({ level: "silent" }),
-        printQRInTerminal: false,   // we don’t want ASCII QR
+        printQRInTerminal: true,
         auth: state,
     })
 
-    // When pairing code or QR is required
-    if (!sock.authState.creds.registered) {
-        try {
-            const phoneNumber = process.env.PHONE_NUMBER || "91XXXXXXXXXX" // <--- put your phone number with country code
-            const code = await sock.requestPairingCode(phoneNumber)
-
+    // Connection handling
+    sock.ev.on("connection.update", ({ connection, qr, lastDisconnect }) => {
+        if (qr) {
             console.log("====================================")
-            console.log("✅ Pairing Code:", code)
-            console.log("📲 Or scan this QR:")
-            console.log(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(code)}`)
+            console.log("📲 Scan this QR to connect:")
+            console.log(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`)
             console.log("====================================")
-        } catch (err) {
-            console.error("❌ Failed to generate pairing code:", err)
         }
-    }
 
-    sock.ev.on("creds.update", saveCreds)
-    sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
         if (connection === "close") {
             const shouldReconnect =
                 lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
@@ -44,6 +35,30 @@ async function startBot() {
             if (shouldReconnect) startBot()
         } else if (connection === "open") {
             console.log("✅ Connected to WhatsApp!")
+        }
+    })
+
+    sock.ev.on("creds.update", saveCreds)
+
+    // 📩 Listen for messages
+    sock.ev.on("messages.upsert", async ({ messages }) => {
+        const msg = messages[0]
+        if (!msg.message || msg.key.fromMe) return
+
+        const sender = msg.key.remoteJid
+        const textMessage = msg.message.conversation || msg.message.extendedTextMessage?.text || ""
+
+        console.log(`💬 Message from ${sender}: ${textMessage}`)
+
+        // ⚡ Commands
+        if (textMessage.toLowerCase() === "ping") {
+            await sock.sendMessage(sender, { text: "pong ✅" })
+        }
+
+        if (textMessage.toLowerCase() === "menu") {
+            await sock.sendMessage(sender, {
+                text: "🤖 *Bot Menu*\n\n1. ping → pong\n2. menu → show this menu"
+            })
         }
     })
 }
