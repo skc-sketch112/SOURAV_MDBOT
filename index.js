@@ -22,10 +22,8 @@ async function startBot() {
     // Connection handling
     sock.ev.on("connection.update", ({ connection, qr, lastDisconnect }) => {
         if (qr) {
-            console.log("====================================")
             console.log("📲 Scan this QR to connect:")
             console.log(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`)
-            console.log("====================================")
         }
 
         if (connection === "close") {
@@ -46,16 +44,24 @@ async function startBot() {
         if (!msg.message || msg.key.fromMe) return
 
         const sender = msg.key.remoteJid
-        const textMessage = msg.message.conversation || msg.message.extendedTextMessage?.text || ""
 
+        // Normalize text (works for normal, reply, caption)
+        let textMessage =
+            msg.message.conversation ||
+            msg.message.extendedTextMessage?.text ||
+            msg.message.imageMessage?.caption ||
+            msg.message.videoMessage?.caption ||
+            ""
+
+        textMessage = textMessage.trim().toLowerCase()
         console.log(`💬 Message from ${sender}: ${textMessage}`)
 
         // ⚡ Commands
-        if (textMessage.toLowerCase() === "ping") {
+        if (textMessage === "ping") {
             await sock.sendMessage(sender, { text: "pong ✅" })
         }
 
-        if (textMessage.toLowerCase() === "menu") {
+        if (textMessage === "menu") {
             await sock.sendMessage(sender, {
                 text: "🤖 *Bot Menu*\n\n1. ping → pong\n2. menu → show this menu"
             })
