@@ -8,11 +8,10 @@ const fetch = global.fetch || ((...args) =>
 module.exports = {
   name: "quran",
   command: ["quran"],
-  description: "📖 Get Quran Surah by number (1–114)",
+  description: "📖 Get full Quran Surah text (1–114)",
   async execute(sock, m, args) {
     const chatId = m.key.remoteJid;
 
-    // Check if user provided surah number
     if (!args[0]) {
       await sock.sendMessage(chatId, {
         text: "⚠️ Please provide a Surah number (1–114)\nExample: `.quran 1`",
@@ -21,7 +20,6 @@ module.exports = {
     }
 
     const surahNumber = parseInt(args[0]);
-
     if (isNaN(surahNumber) || surahNumber < 1 || surahNumber > 114) {
       await sock.sendMessage(chatId, {
         text: "❌ Invalid input. Surah number must be between 1 and 114.",
@@ -30,9 +28,9 @@ module.exports = {
     }
 
     try {
-      // Fetch Surah data
+      // Fetch Surah with text
       const response = await fetch(
-        `https://api.alquran.cloud/v1/surah/${surahNumber}`
+        `https://api.alquran.cloud/v1/surah/${surahNumber}/en.asad`
       );
       const data = await response.json();
 
@@ -44,13 +42,23 @@ module.exports = {
       }
 
       const surah = data.data;
-      const message = `📖 Surah ${surah.englishName} (${surah.englishNameTranslation})\n` +
-                      `🔢 Surah Number: ${surah.number}\n` +
-                      `📚 Ayahs: ${surah.numberOfAyahs}\n\n` +
-                      `🌙 Revelation: ${surah.revelationType}\n\n` +
-                      `👉 Use .ayah <surah> <ayah> to get specific ayah.`;
+      const header = `📖 Surah ${surah.englishName} (${surah.englishNameTranslation})\n` +
+                     `🔢 Number: ${surah.number}\n` +
+                     `📚 Ayahs: ${surah.numberOfAyahs}\n\n`;
 
-      await sock.sendMessage(chatId, { text: message });
+      // Build full Surah text
+      let text = header;
+      surah.ayahs.forEach((ayah) => {
+        text += `${ayah.numberInSurah}. ${ayah.text}\n`;
+      });
+
+      // WhatsApp messages have a limit (~4000 chars), split into chunks
+      const chunks = text.match(/[\s\S]{1,3500}/g);
+
+      for (const chunk of chunks) {
+        await sock.sendMessage(chatId, { text: chunk }, { quoted: m });
+      }
+
     } catch (err) {
       console.error("❌ Quran API Error:", err);
       await sock.sendMessage(chatId, {
