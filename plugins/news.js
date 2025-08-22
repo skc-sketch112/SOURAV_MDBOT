@@ -1,58 +1,39 @@
 const fetch = require("node-fetch");
-const Parser = require("rss-parser");
-const parser = new Parser();
+const xml2js = require("xml2js");
 
 module.exports = {
     name: "news",
-    command: ["news", "headlines"],
-    description: "Get latest news headlines from multiple sources",
+    command: ["news"],
+    description: "Get the latest news headlines (unlimited queries)",
 
     execute: async (sock, m, args) => {
         try {
-            // 🌍 Multiple news RSS sources
-            const feeds = [
-                "http://feeds.bbci.co.uk/news/rss.xml", // BBC
-                "https://rss.cnn.com/rss/edition.rss", // CNN
-                "https://www.aljazeera.com/xml/rss/all.xml", // Al Jazeera
-                "https://feeds.a.dj.com/rss/RSSWorldNews.xml", // Wall Street Journal
-                "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml" // NYT
-            ];
+            const query = args.length > 0 ? args.join(" ") : "world";
+            const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-IN&gl=IN&ceid=IN:en`;
 
-            let headlines = [];
+            // Fetch RSS
+            const response = await fetch(url);
+            const xml = await response.text();
 
-            // Fetch from all sources
-            for (const feed of feeds) {
-                try {
-                    let data = await parser.parseURL(feed);
-                    data.items.slice(0, 3).forEach(item => { // 3 per source
-                        headlines.push(`📰 *${item.title}*\n🔗 ${item.link}`);
-                    });
-                } catch (err) {
-                    console.error("Failed to fetch from:", feed, err.message);
-                }
+            // Parse XML
+            const result = await xml2js.parseStringPromise(xml);
+
+            const items = result.rss.channel[0].item || [];
+            if (items.length === 0) {
+                return await sock.sendMessage(m.key.remoteJid, { text: "⚠️ No news found right now." }, { quoted: m });
             }
 
-            if (headlines.length === 0) {
-                await sock.sendMessage(m.key.remoteJid, { text: "⚠️ No news available right now, try again later." }, { quoted: m });
-                return;
-            }
+            // Format first 10 news headlines
+            let newsList = `📰 *Latest News on ${query}* 📰\n\n`;
+            items.slice(0, 10).forEach((item, i) => {
+                newsList += `🔹 *${i + 1}. ${item.title[0]}*\n🔗 ${item.link[0]}\n\n`;
+            });
 
-            // 📢 Format final news text
-            const newsText = `🌍 *Latest News Updates* 🌍\n\n${headlines.join("\n\n")}`;
-
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: newsText },
-                { quoted: m }
-            );
+            await sock.sendMessage(m.key.remoteJid, { text: newsList }, { quoted: m });
 
         } catch (err) {
-            console.error("❌ News error:", err);
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: "⚠️ Failed to fetch news, please try again later." },
-                { quoted: m }
-            );
+            console.error("❌ News fetch error:", err);
+            await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Failed to fetch news. Please try again later." }, { quoted: m });
         }
     }
 };
