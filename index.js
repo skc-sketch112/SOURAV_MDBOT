@@ -25,29 +25,35 @@ setInterval(() => {
 // ================== LOAD PLUGINS ==================
 const commands = new Map();
 
-fs.readdirSync(path.join(__dirname, "plugins")).forEach(file => {
-    if (file.endsWith(".js")) {
-        try {
-            const plugin = require(`./plugins/${file}`);
-            // accept BOTH old style (name, execute) and new style (name, command[])
-            if (plugin.name && plugin.execute) {
+function loadPlugins() {
+    fs.readdirSync(path.join(__dirname, "plugins")).forEach(file => {
+        if (file.endsWith(".js")) {
+            try {
+                const plugin = require(`./plugins/${file}`);
+
+                let pluginName = plugin.name || file.replace(".js", "");
+                let aliases = [];
+
                 if (plugin.command && Array.isArray(plugin.command)) {
-                    plugin.command.forEach(alias => {
-                        commands.set(alias.toLowerCase(), plugin);
-                    });
+                    aliases = plugin.command.map(c => c.toLowerCase());
+                } else if (plugin.command && typeof plugin.command === "string") {
+                    aliases = [plugin.command.toLowerCase()];
                 } else {
-                    // fallback: use plugin.name as single command
-                    commands.set(plugin.name.toLowerCase(), plugin);
+                    aliases = [pluginName.toLowerCase()]; // fallback
                 }
-                console.log(`✅ Loaded plugin: ${plugin.name}`);
-            } else {
-                console.log(`⚠️ Skipped ${file}: missing name/execute`);
+
+                aliases.forEach(alias => {
+                    commands.set(alias, plugin);
+                });
+
+                console.log(`✅ Loaded plugin: ${pluginName} [${aliases.join(", ")}]`);
+            } catch (err) {
+                console.error(`❌ Failed to load plugin ${file}:`, err);
             }
-        } catch (err) {
-            console.error(`❌ Failed to load plugin ${file}:`, err);
         }
-    }
-});
+    });
+}
+loadPlugins();
 
 // ================== ANTI-BAN SYSTEM ==================
 let antiBanEnabled = true;
@@ -113,7 +119,7 @@ async function startBot() {
 
         let command = commands.get(cmd);
 
-        if (command) {
+        if (command && typeof command.execute === "function") {
             try {
                 await applyAntiBan(sock, m);
                 await command.execute(sock, m, args);
