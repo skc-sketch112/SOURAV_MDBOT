@@ -1,5 +1,11 @@
-// 🚀 Keep Alive Web Server
+// ================== IMPORTS ==================
 const express = require("express");
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require("@whiskeysockets/baileys");
+const pino = require("pino");
+const fs = require("fs");
+const path = require("path");
+
+// ================== KEEP ALIVE SERVER ==================
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -10,17 +16,13 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
     console.log(`🌐 Keep-alive server running on port ${PORT}`);
 });
-const {
-    default: makeWASocket,
-    useMultiFileAuthState,
-    DisconnectReason
-} = require("@whiskeysockets/baileys");
 
-const pino = require("pino");
-const fs = require("fs");
-const path = require("path");
+// ================== HEARTBEAT (PREVENT CRASH) ==================
+setInterval(() => {
+    console.log("💓 Heartbeat: Bot still running...");
+}, 1000 * 60 * 5); // every 5 minutes
 
-// ✅ Load all plugins into a Command Map
+// ================== LOAD PLUGINS ==================
 const commands = new Map();
 
 fs.readdirSync(path.join(__dirname, "plugins")).forEach(file => {
@@ -28,7 +30,6 @@ fs.readdirSync(path.join(__dirname, "plugins")).forEach(file => {
         try {
             const plugin = require(`./plugins/${file}`);
             if (plugin.name && plugin.command && plugin.execute) {
-                // Register each alias
                 plugin.command.forEach(alias => {
                     commands.set(alias.toLowerCase(), plugin);
                 });
@@ -42,6 +43,7 @@ fs.readdirSync(path.join(__dirname, "plugins")).forEach(file => {
     }
 });
 
+// ================== START BOT ==================
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState("auth");
 
@@ -51,7 +53,7 @@ async function startBot() {
         auth: state,
     });
 
-    // ✅ QR Code link
+    // QR Code link
     sock.ev.on("connection.update", (update) => {
         const { connection, qr } = update;
         if (qr) {
@@ -65,8 +67,8 @@ async function startBot() {
             if (reason === DisconnectReason.loggedOut) {
                 console.log("❌ Logged out. Delete auth folder and reconnect.");
             } else {
-                console.log("⚠️ Connection closed. Reconnecting...");
-                startBot();
+                console.log("⚠️ Connection closed. Reconnecting in 5s...");
+                setTimeout(startBot, 5000); // 🔄 Safe auto-reconnect
             }
         } else if (connection === "open") {
             console.log("✅ Bot connected!");
@@ -75,7 +77,7 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds);
 
-    // ✅ Message handler
+    // Message handler
     sock.ev.on("messages.upsert", async ({ messages }) => {
         const m = messages[0];
         if (!m.message) return;
@@ -85,13 +87,11 @@ async function startBot() {
             m.message.extendedTextMessage?.text ||
             "";
 
-        if (!body.startsWith(".")) return; // prefix = .
+        if (!body.startsWith(".")) return; // prefix = "."
 
-        // Split into command + args
         let args = body.slice(1).trim().split(/\s+/);
         let cmd = args.shift().toLowerCase();
 
-        // Find command from map
         let command = commands.get(cmd);
 
         if (command) {
@@ -100,10 +100,18 @@ async function startBot() {
                 console.log(`⚡ Command executed: ${cmd}`);
             } catch (err) {
                 console.error(`❌ Error in command ${cmd}:`, err);
-                await sock.sendMessage(m.key.remoteJid, { text: `⚠️ Error while executing: ${cmd}` }, { quoted: m });
+                await sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: `⚠️ Error while executing: ${cmd}` },
+                    { quoted: m }
+                );
             }
         } else {
-            await sock.sendMessage(m.key.remoteJid, { text: `⚠️ Command not found: ${cmd}` }, { quoted: m });
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { text: `⚠️ Command not found: ${cmd}` },
+                { quoted: m }
+            );
         }
     });
 }
