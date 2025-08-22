@@ -38,28 +38,36 @@ module.exports = {
         return reply("⚠️ No results found for: " + text);
       }
 
-      let first = results[0]; // take first result
-      let page = await axios.get(first.link);
-      let pageHtml = page.data;
+      // Take top 5 results
+      let topResults = results.slice(0, 5);
 
-      let version = (pageHtml.match(/Version<\/p>\s*<p>([^<]+)/) || [])[1] || "N/A";
-      let update = (pageHtml.match(/Update<\/p>\s*<p>([^<]+)/) || [])[1] || "N/A";
-      let size = (pageHtml.match(/File Size<\/p>\s*<p>([^<]+)/) || [])[1] || "N/A";
+      for (let app of topResults) {
+        let page = await axios.get(app.link);
+        let pageHtml = page.data;
 
-      // Extract download link
-      let downloadMatch = pageHtml.match(/href="([^"]+download\?from=details)" class="da/");
-      let downloadLink = downloadMatch ? "https://apkpure.com" + downloadMatch[1] : "Not Found";
+        let version = (pageHtml.match(/Version<\/p>\s*<p>([^<]+)/) || [])[1] || "N/A";
+        let update = (pageHtml.match(/Update<\/p>\s*<p>([^<]+)/) || [])[1] || "N/A";
+        let size = (pageHtml.match(/File Size<\/p>\s*<p>([^<]+)/) || [])[1] || "N/A";
 
-      let msg = `📱 *${first.name}*\n\n` +
-                `🔖 Version: ${version}\n` +
-                `📦 Size: ${size}\n` +
-                `📅 Updated: ${update}\n\n` +
-                `⬇️ [Download Here](${downloadLink})`;
+        // Extract download link
+        let downloadMatch = pageHtml.match(/href="([^"]+download\?from=details)"/);
+        let downloadLink = downloadMatch ? "https://apkpure.com" + downloadMatch[1] : "Not Found";
 
-      await sock.sendMessage(jid, {
-        image: { url: first.icon },
-        caption: msg
-      }, { quoted: m });
+        let msg = `📱 *${app.name}*\n\n` +
+                  `🔖 Version: ${version}\n` +
+                  `📦 Size: ${size}\n` +
+                  `📅 Updated: ${update}\n\n` +
+                  `⬇️ Download: ${downloadLink}`;
+
+        await sock.sendMessage(
+          jid,
+          {
+            image: { url: app.icon },
+            caption: msg
+          },
+          { quoted: m }
+        );
+      }
 
     } catch (err) {
       console.error("apk.js error:", err);
