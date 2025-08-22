@@ -1,50 +1,56 @@
+const fetch = require("node-fetch");
+
 module.exports = {
     name: "anime",
-    command: ["anime", "animes"],
-    description: "Send 5 random anime images safely",
-    category: "Fun",
-
-    async execute(sock, m, args) {
+    description: "Get random anime images (unlimited)",
+    run: async (sock, from, args) => {
         try {
-            // Anime image links (you can add unlimited here)
-            const animeImages = [
-                "https://i.imgur.com/W1aD1zC.jpg",
-                "https://i.imgur.com/jt3A6Qp.jpg",
-                "https://i.imgur.com/6dXKQJQ.jpg",
-                "https://i.imgur.com/ox2eXnM.jpg",
-                "https://i.imgur.com/5Y2hZ7A.jpg",
-                "https://i.imgur.com/8dfU0wV.jpg",
-                "https://i.imgur.com/4jK2tZT.jpg",
-                "https://i.imgur.com/L9U3vYj.jpg",
-                "https://i.imgur.com/VV3DFJf.jpg",
-                "https://i.imgur.com/1cO5h0h.jpg"
+            // Available categories
+            const categories = ["waifu", "neko", "shinobu", "megumin", "bully", "happy", "cry", "dance"];
+            const category = args[0]?.toLowerCase() || categories[Math.floor(Math.random() * categories.length)];
+
+            // Fallback API list
+            const apis = [
+                `https://api.waifu.pics/sfw/${category}`,
+                `https://nekos.best/api/v2/${category}`,
+                `https://some-random-api.com/animu/${category}`
             ];
 
-            // Pick 5 random images
-            let selected = [];
-            for (let i = 0; i < 5; i++) {
-                let randomImg = animeImages[Math.floor(Math.random() * animeImages.length)];
-                selected.push(randomImg);
+            let imageUrl = null;
+
+            for (let api of apis) {
+                try {
+                    const res = await fetch(api);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+
+                    // waifu.pics
+                    if (data.url) imageUrl = data.url;
+
+                    // nekos.best
+                    if (data.results && data.results[0]?.url) imageUrl = data.results[0].url;
+
+                    // some-random-api
+                    if (data.link) imageUrl = data.link;
+
+                    if (imageUrl) break; // ✅ got a working link
+                } catch (e) {
+                    continue; // try next API
+                }
             }
 
-            // Send images one by one with delay
-            for (let img of selected) {
-                await sock.sendMessage(
-                    m.key.remoteJid,
-                    { image: { url: img }, caption: "🌸 Anime Pic" },
-                    { quoted: m }
-                );
-                // Safe delay (1s) so no spam/429 error
-                await new Promise(resolve => setTimeout(resolve, 1000));
+            if (!imageUrl) {
+                return await sock.sendMessage(from, { text: "❌ Couldn’t fetch anime image. Try again." });
             }
+
+            await sock.sendMessage(from, {
+                image: { url: imageUrl },
+                caption: `✨ *Here’s your anime (${category})*`
+            });
 
         } catch (err) {
-            console.error("❌ Error in anime command:", err);
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: "⚠️ Error while sending anime images." },
-                { quoted: m }
-            );
+            console.error("Anime command error:", err);
+            await sock.sendMessage(from, { text: "❌ Error while fetching anime image." });
         }
     }
 };
