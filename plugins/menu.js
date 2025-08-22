@@ -5,8 +5,8 @@ const path = require("path");
 const OWNER = "SOURAV_MD";
 const PREFIX = ".";
 const VERSION = "1.0.3";
-const MODE = "Public"; // Change if needed
-const LOGO = "https://i.ibb.co/x7M8Wmc/bot-logo.jpg"; // Replace with your logo/image URL
+const MODE = "Public"; 
+const LOGO = "https://i.ibb.co/x7M8Wmc/bot-logo.jpg"; // Replace with your logo
 
 module.exports = {
   name: "menu",
@@ -46,15 +46,16 @@ module.exports = {
       });
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-      // Auto-load plugins
+      // Load plugins
       const pluginsDir = path.join(__dirname);
       const files = fs.readdirSync(pluginsDir).filter(f => f.endsWith(".js"));
 
       let categories = {};
 
       for (const file of files) {
-        if (file === "menu.js") continue; // skip itself
+        if (file === "menu.js") continue;
         try {
+          delete require.cache[require.resolve(path.join(pluginsDir, file))]; // clear cache
           const plugin = require(path.join(pluginsDir, file));
           if (!plugin || !plugin.command) continue;
 
@@ -71,11 +72,11 @@ module.exports = {
             desc: plugin.description || ""
           });
         } catch (err) {
-          console.error(`Failed to load ${file} for menu:`, err.message);
+          console.error(`❌ Failed to load ${file}:`, err.message);
         }
       }
 
-      // Build menu text
+      // Build menu
       let menuText = `╭───❰ *SOURAV_MD MENU* ❱───╮\n`;
       menuText += `│ 👑 Owner : ${OWNER}\n`;
       menuText += `│ 💎 Version : ${VERSION}\n`;
@@ -111,8 +112,8 @@ module.exports = {
       );
 
     } catch (err) {
-      console.error("menu error:", err);
-      await reply("❌ Failed to generate menu. Check console logs.");
+      console.error("❌ Menu generation error:", err);
+      await reply("❌ Failed to generate menu. Please check console logs.");
     }
   }
 };
