@@ -1,3 +1,6 @@
+const fs = require("fs");
+const path = require("path");
+
 module.exports = {
     name: "anime",
     command: ["anime", "animes"],
@@ -6,37 +9,34 @@ module.exports = {
 
     async execute(sock, m, args) {
         try {
-            // 🖼️ Anime images (add as many as you want here)
-            const animeImages = [
-                "https://i.imgur.com/5M9N6XU.jpg",
-                "https://i.imgur.com/F3QpYwK.jpg",
-                "https://i.imgur.com/Ul4KppC.jpg",
-                "https://i.imgur.com/n60EMvA.jpg",
-                "https://i.imgur.com/ci0v6Mn.jpg",
-                "https://i.imgur.com/5W3hshV.jpg",
-                "https://i.imgur.com/PaSWK6N.jpg",
-                "https://i.imgur.com/xuAobfG.jpg",
-                "https://i.imgur.com/H6aVx85.jpg",
-                "https://i.imgur.com/Yh3N8rL.jpg",
-                "https://i.imgur.com/h1V9Ywr.jpg",
-                "https://i.imgur.com/rScXfFa.jpg",
-                "https://i.imgur.com/1WfKQhX.jpg",
-                "https://i.imgur.com/6mhLHQy.jpg",
-                "https://i.imgur.com/qfZnR7N.jpg"
-            ];
+            // 📂 Folder where anime images are stored
+            const animeFolder = path.join(__dirname, "../media/anime");
+
+            // Get all image files from folder
+            const files = fs.readdirSync(animeFolder).filter(file =>
+                file.endsWith(".jpg") || file.endsWith(".png") || file.endsWith(".jpeg")
+            );
+
+            if (files.length < 1) {
+                return sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: "⚠️ No anime images found in /media/anime folder!" },
+                    { quoted: m }
+                );
+            }
 
             // 🎲 Pick 5 random images
             let selected = [];
             for (let i = 0; i < 5; i++) {
-                let img = animeImages[Math.floor(Math.random() * animeImages.length)];
-                selected.push(img);
+                let randomFile = files[Math.floor(Math.random() * files.length)];
+                selected.push(path.join(animeFolder, randomFile));
             }
 
             // 📤 Send images one by one
-            for (let url of selected) {
+            for (let img of selected) {
                 await sock.sendMessage(
                     m.key.remoteJid,
-                    { image: { url }, caption: "✨ Anime Image" },
+                    { image: fs.readFileSync(img), caption: "✨ Anime Image" },
                     { quoted: m }
                 );
             }
