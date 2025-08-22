@@ -1,45 +1,58 @@
-const apkpureCrawler = require('apkpure-crawler');
-const axios = require('axios');
+const axios = require("axios");
+const cheerio = require("cheerio");
 
 module.exports = {
-  name: "apk",
-  command: ["apk", "app", "getapk"],
-  category: "tools",
-  description: "Search and fetch APK Info from APKPure",
-  use: ".apk <appname>",
+    name: "APK Downloader",
+    command: ["apk", "app", "getapk"],
+    description: "Search and download APK files (unlimited, no error).",
 
-  execute: async (sock, m, args) => {
-    const jid = m?.key?.remoteJid;
+    async execute(sock, m, args) {
+        const query = args.join(" ");
+        if (!query) {
+            return sock.sendMessage(m.key.remoteJid, { text: "❌ Please provide an app name.\n\nExample: `.apk whatsapp`" }, { quoted: m });
+        }
 
-    const reply = async (text, extra = {}) =>
-      sock.sendMessage(jid, { text, ...extra }, { quoted: m });
+        try {
+            await sock.sendMessage(m.key.remoteJid, { text: `🔎 Searching APK for: *${query}* ...` }, { quoted: m });
 
-    if (!args.length) return reply("❌ Usage: `.apk <app name or package>`");
+            // === Scraping from ApkCombo (Fast & Stable) ===
+            const searchUrl = `https://apkcombo.com/en/search/?q=${encodeURIComponent(query)}`;
+            const { data } = await axios.get(searchUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+            const $ = cheerio.load(data);
 
-    const query = args.join(" ");
-    await reply(`🔍 Searching APKPure for "${query}"...`);
+            let results = [];
+            $(".search-result a").each((i, el) => {
+                if (i < 5) { // fetch top 5 apps
+                    results.push({
+                        name: $(el).find(".title").text().trim(),
+                        link: "https://apkcombo.com" + $(el).attr("href"),
+                        icon: $(el).find("img").attr("src")
+                    });
+                }
+            });
 
-    try {
-      // Use crawler to fetch app info
-      const data = await apkpureCrawler.crawlerApkInfo(query, { withVersions: true });
-      apkpureCrawler.closeBrowser();
+            if (results.length === 0) {
+                return sock.sendMessage(m.key.remoteJid, { text: `❌ No results found for: *${query}*` }, { quoted: m });
+            }
 
-      if (!data || !data.downloadUrl) {
-        return reply(`⚠️ No APK found for "${query}".`);
-      }
+            let caption = `📱 *Top APK Results for: ${query}*\n\n`;
+            results.forEach((res, i) => {
+                caption += `*${i + 1}. ${res.name}*\n🔗 ${res.link}\n\n`;
+            });
 
-      const { name, downloadUrl, latestVersionName, latestVersionCode, updateDate, shortDescription } = data;
+            await sock.sendMessage(m.key.remoteJid, { text: caption }, { quoted: m });
 
-      let msg = `*${name}*\n`;
-      msg += `📦 Version: ${latestVersionName} (code ${latestVersionCode})\n`;
-      msg += `🆕 Updated: ${updateDate || 'N/A'}\n`;
-      msg += `📝 Desc: ${shortDescription || 'N/A'}\n\n`;
-      msg += `⬇️ Download: ${downloadUrl}`;
+            // === Auto Fetch Download Link for First App ===
+            const firstApp = results[0];
+            const { data: appPage } = await axios.get(firstApp.link, { headers: { "User-Agent": "Mozilla/5.0" } });
+            const $$ = cheerio.load(appPage);
+            const dlPage = "https://apkcombo.com" + $$(".apk").attr("href");
 
-      await reply(msg);
-    } catch (err) {
-      console.error("apk.js error:", err);
-      reply("❌ Failed to fetch APK info. Try again later.");
-    }
-  }
-};
+            if (!dlPage) {
+                return sock.sendMessage(m.key.remoteJid, { text: `⚠️ Could not fetch direct APK link for ${firstApp.name}` }, { quoted: m });
+            }
+
+            // Get final download link
+            const { data: dlData } = await axios.get(dlPage, { headers: { "User-Agent": "Mozilla/5.0" } });
+            const $$$ = cheerio.load(dlData);
+            const finalLink = $$$("a#download_button").attr("href");
