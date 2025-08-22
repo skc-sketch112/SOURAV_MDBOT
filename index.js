@@ -17,10 +17,10 @@ app.listen(PORT, () => {
     console.log(`🌐 Keep-alive server running on port ${PORT}`);
 });
 
-// ================== HEARTBEAT (PREVENT CRASH) ==================
+// ================== HEARTBEAT ==================
 setInterval(() => {
     console.log("💓 Heartbeat: Bot still running...");
-}, 1000 * 60 * 5); // every 5 minutes
+}, 1000 * 60 * 5);
 
 // ================== LOAD PLUGINS ==================
 const commands = new Map();
@@ -29,13 +29,19 @@ fs.readdirSync(path.join(__dirname, "plugins")).forEach(file => {
     if (file.endsWith(".js")) {
         try {
             const plugin = require(`./plugins/${file}`);
-            if (plugin.name && plugin.command && plugin.execute) {
-                plugin.command.forEach(alias => {
-                    commands.set(alias.toLowerCase(), plugin);
-                });
-                console.log(`✅ Loaded plugin: ${plugin.name} [${plugin.command.join(", ")}]`);
+            // accept BOTH old style (name, execute) and new style (name, command[])
+            if (plugin.name && plugin.execute) {
+                if (plugin.command && Array.isArray(plugin.command)) {
+                    plugin.command.forEach(alias => {
+                        commands.set(alias.toLowerCase(), plugin);
+                    });
+                } else {
+                    // fallback: use plugin.name as single command
+                    commands.set(plugin.name.toLowerCase(), plugin);
+                }
+                console.log(`✅ Loaded plugin: ${plugin.name}`);
             } else {
-                console.log(`⚠️ Skipped ${file}: Missing name/command/execute`);
+                console.log(`⚠️ Skipped ${file}: missing name/execute`);
             }
         } catch (err) {
             console.error(`❌ Failed to load plugin ${file}:`, err);
@@ -44,19 +50,16 @@ fs.readdirSync(path.join(__dirname, "plugins")).forEach(file => {
 });
 
 // ================== ANTI-BAN SYSTEM ==================
-let antiBanEnabled = true; // default ON
+let antiBanEnabled = true;
 
 async function applyAntiBan(sock, m) {
     if (!antiBanEnabled) return;
 
     const jid = m.key.remoteJid;
-
-    // Simulate "typing" like human
-    await sock.sendPresenceUpdate("composing", jid);
-
-    // Random delay 500ms – 2000ms before reply
-    const delay = ms => new Promise(r => setTimeout(r, ms));
-    await delay(500 + Math.random() * 1500);
+    try {
+        await sock.sendPresenceUpdate("composing", jid);
+        await new Promise(r => setTimeout(r, 500 + Math.random() * 1500));
+    } catch { }
 }
 
 // ================== START BOT ==================
@@ -69,7 +72,7 @@ async function startBot() {
         auth: state,
     });
 
-    // QR Code link
+    // QR Code Link in Console
     sock.ev.on("connection.update", (update) => {
         const { connection, qr } = update;
         if (qr) {
@@ -84,7 +87,7 @@ async function startBot() {
                 console.log("❌ Logged out. Delete auth folder and reconnect.");
             } else {
                 console.log("⚠️ Connection closed. Reconnecting in 5s...");
-                setTimeout(startBot, 5000); // 🔄 Safe auto-reconnect
+                setTimeout(startBot, 5000);
             }
         } else if (connection === "open") {
             console.log("✅ Bot connected!");
@@ -112,10 +115,7 @@ async function startBot() {
 
         if (command) {
             try {
-                // 🔒 Apply Anti-Ban before command execution
                 await applyAntiBan(sock, m);
-
-                // Execute the command
                 await command.execute(sock, m, args);
                 console.log(`⚡ Command executed: ${cmd}`);
             } catch (err) {
