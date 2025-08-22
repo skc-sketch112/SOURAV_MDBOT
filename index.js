@@ -43,6 +43,22 @@ fs.readdirSync(path.join(__dirname, "plugins")).forEach(file => {
     }
 });
 
+// ================== ANTI-BAN SYSTEM ==================
+let antiBanEnabled = true; // default ON
+
+async function applyAntiBan(sock, m) {
+    if (!antiBanEnabled) return;
+
+    const jid = m.key.remoteJid;
+
+    // Simulate "typing" like human
+    await sock.sendPresenceUpdate("composing", jid);
+
+    // Random delay 500ms – 2000ms before reply
+    const delay = ms => new Promise(r => setTimeout(r, ms));
+    await delay(500 + Math.random() * 1500);
+}
+
 // ================== START BOT ==================
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState("auth");
@@ -96,6 +112,10 @@ async function startBot() {
 
         if (command) {
             try {
+                // 🔒 Apply Anti-Ban before command execution
+                await applyAntiBan(sock, m);
+
+                // Execute the command
                 await command.execute(sock, m, args);
                 console.log(`⚡ Command executed: ${cmd}`);
             } catch (err) {
