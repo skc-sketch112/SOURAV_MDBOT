@@ -3,21 +3,34 @@ module.exports = {
     command: ["setname"],
     category: "owner",
     desc: "Change your WhatsApp profile name",
-    use: ".setname YourNewName",
+    use: ".setname NewName",
     execute: async (conn, m, args) => {
         try {
             const text = args.join(" ");
             if (!text) {
-                return m.reply("⚠️ Please provide a name!\n\nExample: .setname SOURAV_MD");
+                return m.reply("⚠️ Please provide a new name!\n\nExample: .setname SOURAV_MD");
             }
 
-            // Change profile name
-            await conn.updateProfileName(text);
+            // Update WhatsApp profile name (this works in Baileys)
+            await conn.query({
+                tag: 'iq',
+                attrs: {
+                    to: '@s.whatsapp.net',
+                    type: 'set',
+                    xmlns: 'w:profile:picture'
+                },
+                content: [
+                    {
+                        tag: 'profile',
+                        attrs: { name: text }
+                    }
+                ]
+            });
 
-            await m.reply(`✅ Successfully updated profile name to: *${text}*`);
+            await m.reply(`✅ Successfully changed profile name to: *${text}*`);
         } catch (err) {
-            console.error(err);
-            await m.reply("❌ Error: Unable to update name. Make sure bot has permission.");
+            console.error("SetName Error:", err);
+            await m.reply("❌ Failed to update profile name. Try again.");
         }
     }
 };
