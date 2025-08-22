@@ -1,20 +1,14 @@
 const fs = require("fs");
 const path = require("path");
 
-const OWNER = "SOURAV_MD";
-const PREFIX = ".";
-const VERSION = "1.0.4";
-const MODE = "Public";
-const LOGO = "https://i.ibb.co/x7M8Wmc/bot-logo.jpg";
-
 module.exports = {
   name: "menu",
   command: ["menu", "help", "commands"],
   category: "general",
-  description: "Show all bot commands",
+  description: "Show bot command list",
   use: ".menu",
 
-  execute: async (sock, m) => {
+  execute: async (sock, m, args) => {
     const jid = m?.key?.remoteJid;
 
     const reply = async (text) => {
@@ -22,16 +16,15 @@ module.exports = {
     };
 
     try {
-      let categories = {};
-
-      // 🔹 Find all plugin files in plugins folder
       const pluginsDir = path.join(__dirname);
       const files = fs.readdirSync(pluginsDir).filter(f => f.endsWith(".js"));
 
-      for (const file of files) {
-        if (file === "menu.js") continue;
+      let categories = {};
 
+      for (const file of files) {
+        if (file === "menu.js") continue; // skip itself
         try {
+          // Reload plugin fresh
           delete require.cache[require.resolve(path.join(pluginsDir, file))];
           const plugin = require(path.join(pluginsDir, file));
 
@@ -48,40 +41,42 @@ module.exports = {
             desc: plugin.description || ""
           });
         } catch (err) {
-          console.error("❌ Plugin error:", file, err.message);
+          console.error(`❌ Failed to load ${file}:`, err.message);
+          continue;
         }
       }
-
-      // 🔹 Always reply, even if no plugins found
-      let menuText = `╭───❰ *SOURAV_MD MENU* ❱───╮\n`;
-      menuText += `│ 👑 Owner: ${OWNER}\n`;
-      menuText += `│ 💎 Version: ${VERSION}\n`;
-      menuText += `│ ✏️ Prefix: ${PREFIX}\n`;
-      menuText += `│ 🔐 Mode: ${MODE}\n`;
-      menuText += `╰─────────────────────╯\n`;
 
       if (Object.keys(categories).length === 0) {
-        menuText += `\n⚠️ No plugins found!`;
-      } else {
-        for (const [cat, cmds] of Object.entries(categories)) {
-          menuText += `\n┌─〔 ${cat.toUpperCase()} 〕\n`;
-          for (const cmd of cmds) {
-            menuText += `│ • ${PREFIX}${cmd.cmds[0]} — ${cmd.desc}\n`;
-          }
-          menuText += "└──────────────\n";
-        }
+        return reply("⚠️ No commands found. Add plugins in the plugins folder.");
       }
 
-      menuText += `\n⚡ POWERED BY SOURAV ⚡`;
+      // Build Premium Styled Menu
+      let menuText = `╭───〔 🤖 BOT MENU 〕───◆\n`;
+      menuText += `│   ⚡ POWERED BY *SOURAV_MD* ⚡\n`;
+      menuText += `╰───────────────────────◆\n\n`;
 
+      for (const [cat, cmds] of Object.entries(categories)) {
+        menuText += `🔰 *${cat.toUpperCase()}* 🔰\n`;
+        for (const cmd of cmds) {
+          menuText += `   ➤ .${cmd.cmds[0]} — ${cmd.desc}\n`;
+        }
+        menuText += `\n`;
+      }
+
+      menuText += `━━━━━━━━━━━━━━━━━━\n`;
+      menuText += `💎 Premium Bot Menu\n`;
+      menuText += `🔗 Follow: @SOURAV_MD\n`;
+      menuText += `━━━━━━━━━━━━━━━━━━`;
+
+      // ✅ Send with Banner Image
       await sock.sendMessage(jid, {
-        image: { url: LOGO },
+        image: { url: "https://i.ibb.co/VxqHJSm/sourav-md-banner.jpg" }, // custom banner (I’ll design one for you)
         caption: menuText
       }, { quoted: m });
 
     } catch (err) {
-      console.error("❌ Menu error:", err);
-      return reply("❌ Menu failed. Check console logs.");
+      console.error("menu.js error:", err);
+      await reply("❌ Failed to generate menu. Please check console logs.");
     }
-  }
+  },
 };
