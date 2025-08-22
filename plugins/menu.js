@@ -1,84 +1,48 @@
+// menu.js
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 
 module.exports = {
-  name: "menu",
-  command: ["menu", "help", "commands"],
-  category: "general",
-  description: "Show bot command list",
-  use: ".menu",
-
-  execute: async (sock, m, args) => {
-    const jid = m?.key?.remoteJid;
-
-    const reply = async (text) => {
-      return sock.sendMessage(jid, { text }, { quoted: m });
-    };
-
+  command: "menu",
+  info: "Shows the main bot menu",
+  async execute(sock, m) {
     try {
-      const pluginsDir = __dirname; // current plugins folder
-      const files = fs.readdirSync(pluginsDir).filter(f => f.endsWith(".js"));
+      const { performance } = require("perf_hooks");
 
+      // Bot Info
+      const ownerName = "sourav_md";
+      const botName = "SOURAV_MD";
+      const version = "1.0.0";
+
+      // Calculate speed
+      const start = performance.now();
+      const end = performance.now();
+      const speed = (end - start).toFixed(2);
+
+      // Uptime
+      let uptimeSec = process.uptime();
+      let uptime = new Date(uptimeSec * 1000).toISOString().substr(11, 8);
+
+      // Date + Time
+      const date = new Date().toLocaleDateString();
+      const time = new Date().toLocaleTimeString();
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+      // Auto Load Plugins
+      const pluginDir = path.join(__dirname, ".");
       let categories = {};
+      let totalPlugins = 0;
 
-      for (const file of files) {
-        if (file === "menu.js") continue;
-
-        try {
-          delete require.cache[require.resolve(path.join(pluginsDir, file))];
-          const plugin = require(path.join(pluginsDir, file));
-
-          if (!plugin || !plugin.command) {
-            console.warn(`⚠️ Skipping ${file}: no command export`);
-            continue;
-          }
-
-          const category = plugin.category || "Uncategorized";
-          if (!categories[category]) categories[category] = [];
-
-          const cmds = Array.isArray(plugin.command) ? plugin.command : [plugin.command];
-
-          categories[category].push({
-            name: plugin.name || file.replace(".js", ""),
-            cmds,
-            desc: plugin.description || "No description"
-          });
-
-        } catch (err) {
-          console.error(`❌ Error loading ${file}:`, err.message);
-          continue; // skip bad plugin
-        }
-      }
-
-      // If no commands found
-      if (Object.keys(categories).length === 0) {
-        return reply("⚠️ No commands available. Please add plugins in the plugins folder.");
-      }
-
-      // Premium Menu Text
-      let menuText = `╭─────〔 🤖 *BOT MENU* 〕─────◆\n`;
-      menuText += `│   ⚡ POWERED BY *SOURAV_MD* ⚡\n`;
-      menuText += `╰──────────────────────────◆\n\n`;
-
-      for (const [cat, cmds] of Object.entries(categories)) {
-        menuText += `🔰 *${cat.toUpperCase()}*\n`;
-        for (const cmd of cmds) {
-          menuText += `   ➤ .${cmd.cmds[0]} — ${cmd.desc}\n`;
-        }
-        menuText += `\n`;
-      }
-
-      menuText += `━━━━━━━━━━━━━━━━━━\n`;
-      menuText += `💎 Premium Bot by SOURAV_MD\n`;
-      menuText += `━━━━━━━━━━━━━━━━━━`;
-
-      await sock.sendMessage(jid, {
-        text: menuText
-      }, { quoted: m });
-
-    } catch (err) {
-      console.error("menu.js error:", err);
-      await sock.sendMessage(jid, { text: "❌ Still failed. Check logs." }, { quoted: m });
-    }
-  },
-};
+      fs.readdirSync(pluginDir).forEach(file => {
+        if (file.endsWith(".js") && file !== "menu.js") {
+          totalPlugins++;
+          let category = "Other";
+          if (file.includes("download")) category = "Download";
+          else if (file.includes("group")) category = "Group";
+          else if (file.includes("fun")) category = "Fun";
+          else if (file.includes("owner")) category = "Owner";
+          else if (file.includes("ai")) category = "AI";
+          else if (file.includes("anime")) category = "Anime";
+          else if (file.includes("convert")) category = "Convert";
+          else if (file.includes("reaction")) category = "Reactions";
