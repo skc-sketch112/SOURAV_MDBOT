@@ -2,79 +2,64 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports = {
-    name: "menu",
-    command: ["menu", "help"],
-    description: "Display main bot menu",
+  name: "menu",
+  command: ["menu", "help"],
+  category: "general",
+  description: "Show all available commands with categories",
+  use: ".menu",
 
-    execute: async (sock, m, args) => {
-        try {
-            // 📸 Menu image (media/menu.jpg)
-            const imagePath = path.join(__dirname, "../media/menu.jpg");
-            let imageBuffer = null;
-            if (fs.existsSync(imagePath)) {
-                imageBuffer = fs.readFileSync(imagePath);
-            }
+  execute: async (sock, m, args) => {
+    const jid = m?.key?.remoteJid;
 
-            // 🕒 Time & Date (pure JS)
-            const now = new Date();
-            const optionsDate = { year: "numeric", month: "long", day: "numeric" };
-            const optionsTime = { hour: "2-digit", minute: "2-digit", hour12: true };
-            const date = now.toLocaleDateString("en-IN", optionsDate);
-            const time = now.toLocaleTimeString("en-IN", optionsTime);
+    const reply = async (text) => {
+      if (typeof m?.reply === "function") return m.reply(text);
+      return sock.sendMessage(jid, { text }, { quoted: m });
+    };
 
-            // ⚡ Speed (random for display)
-            const speed = Math.floor(Math.random() * (30 - 10 + 1)) + 10;
+    try {
+      // Path to plugins folder
+      const pluginsDir = path.join(__dirname);
 
-            // ⏳ Uptime
-            const uptime = process.uptime(); // seconds
-            const uptimeStr = `${Math.floor(uptime / 60)}m ${Math.floor(uptime % 60)}s`;
+      // Read all plugin files
+      const files = fs.readdirSync(pluginsDir).filter(f => f.endsWith(".js") && f !== "menu.js");
 
-            // 📝 Menu Text
-            const menuText = `
-╭━━━〔 🤖 *SOURAV_MD V4.08.09* 🤖 〕━━━╮
+      let commands = [];
 
-👑 *Owner* : SOURAV_MD
-💎 *Version* : 4.08.09
-📋 *Commands* : 253
-✏️ *Prefix* : [.]
-🔐 *Mode* : Public
-⏰ *Time* : ${time}
-🌍 *Timezone* : Asia/Kolkata
-🚀 *Speed* : ${speed} ms
-🟢 *Uptime* : ${uptimeStr}
-📅 *Date* : ${date}
-
-╰━━━━━━━━━━━━━━━━━━━━━━╯
-
-📌 *COMMAND CATEGORIES*
-🔹 General
-🔹 Fun & Games
-🔹 Spiritual
-🔹 Tools
-🔹 Owner
-`;
-
-            // ✅ Send with image if exists
-            if (imageBuffer) {
-                await sock.sendMessage(
-                    m.key.remoteJid,
-                    { image: imageBuffer, caption: menuText },
-                    { quoted: m }
-                );
-            } else {
-                await sock.sendMessage(
-                    m.key.remoteJid,
-                    { text: menuText },
-                    { quoted: m }
-                );
-            }
-        } catch (err) {
-            console.error("❌ Menu error:", err);
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: "⚠️ Failed to load menu." },
-                { quoted: m }
-            );
+      for (const file of files) {
+        const plugin = require(path.join(pluginsDir, file));
+        if (plugin && plugin.command) {
+          commands.push({
+            name: plugin.name || file.replace(".js", ""),
+            cmds: plugin.command,
+            category: plugin.category || "uncategorized",
+            description: plugin.description || "No description"
+          });
         }
+      }
+
+      // Group by category
+      let grouped = {};
+      for (const cmd of commands) {
+        if (!grouped[cmd.category]) grouped[cmd.category] = [];
+        grouped[cmd.category].push(cmd);
+      }
+
+      // Build menu text
+      let menuText = `🌐 *Bot Command Menu*\n\n`;
+
+      for (const cat in grouped) {
+        menuText += `📂 *${cat.toUpperCase()}*\n`;
+        for (const cmd of grouped[cat]) {
+          menuText += `▫️ ${cmd.cmds.map(c => `.${c}`).join(", ")} → ${cmd.description}\n`;
+        }
+        menuText += `\n`;
+      }
+
+      await reply(menuText);
+
+    } catch (err) {
+      console.error("Error in menu command:", err);
+      await reply("❌ Error while generating menu.");
     }
+  },
 };
