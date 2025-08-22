@@ -15,14 +15,14 @@ module.exports = {
         try {
             await sock.sendMessage(m.key.remoteJid, { text: `🔎 Searching APK for: *${query}* ...` }, { quoted: m });
 
-            // === Scraping from ApkCombo (Fast & Stable) ===
+            // === Search from ApkCombo ===
             const searchUrl = `https://apkcombo.com/en/search/?q=${encodeURIComponent(query)}`;
             const { data } = await axios.get(searchUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
             const $ = cheerio.load(data);
 
             let results = [];
             $(".search-result a").each((i, el) => {
-                if (i < 5) { // fetch top 5 apps
+                if (i < 5) {
                     results.push({
                         name: $(el).find(".title").text().trim(),
                         link: "https://apkcombo.com" + $(el).attr("href"),
@@ -42,17 +42,41 @@ module.exports = {
 
             await sock.sendMessage(m.key.remoteJid, { text: caption }, { quoted: m });
 
-            // === Auto Fetch Download Link for First App ===
-            const firstApp = results[0];
-            const { data: appPage } = await axios.get(firstApp.link, { headers: { "User-Agent": "Mozilla/5.0" } });
-            const $$ = cheerio.load(appPage);
-            const dlPage = "https://apkcombo.com" + $$(".apk").attr("href");
+            // === Try to fetch direct download for first app ===
+            try {
+                const firstApp = results[0];
+                const { data: appPage } = await axios.get(firstApp.link, { headers: { "User-Agent": "Mozilla/5.0" } });
+                const $$ = cheerio.load(appPage);
 
-            if (!dlPage) {
-                return sock.sendMessage(m.key.remoteJid, { text: `⚠️ Could not fetch direct APK link for ${firstApp.name}` }, { quoted: m });
+                let dlPage = $$(".variant").first().find("a").attr("href");
+                if (!dlPage) dlPage = $$(".apk").attr("href"); // fallback
+
+                if (dlPage) {
+                    const fullDlPage = "https://apkcombo.com" + dlPage;
+                    const { data: dlData } = await axios.get(fullDlPage, { headers: { "User-Agent": "Mozilla/5.0" } });
+                    const $$$ = cheerio.load(dlData);
+                    const finalLink = $$$("a#download_button").attr("href");
+
+                    if (finalLink) {
+                        await sock.sendMessage(m.key.remoteJid, {
+                            document: { url: finalLink },
+                            mimetype: "application/vnd.android.package-archive",
+                            fileName: `${firstApp.name}.apk`
+                        }, { quoted: m });
+                    } else {
+                        await sock.sendMessage(m.key.remoteJid, { text: `⚠️ Could not fetch direct APK for ${firstApp.name}. Use the website link above.` }, { quoted: m });
+                    }
+                } else {
+                    await sock.sendMessage(m.key.remoteJid, { text: "⚠️ No direct APK found, use the link above." }, { quoted: m });
+                }
+            } catch (innerErr) {
+                console.error("⚠️ Download link fetch failed:", innerErr.message);
+                await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Could not auto-download APK, but links are provided above ✅" }, { quoted: m });
             }
 
-            // Get final download link
-            const { data: dlData } = await axios.get(dlPage, { headers: { "User-Agent": "Mozilla/5.0" } });
-            const $$$ = cheerio.load(dlData);
-            const finalLink = $$$("a#download_button").attr("href");
+        } catch (err) {
+            console.error("❌ APK Error:", err);
+            await sock.sendMessage(m.key.remoteJid, { text: "❌ Error while fetching APK. Please try again later." }, { quoted: m });
+        }
+    }
+};
