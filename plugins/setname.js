@@ -1,10 +1,10 @@
 module.exports = {
-    pattern: "setname",
-    desc: "Change your WhatsApp profile name",
+    name: "setname",
+    command: ["setname"],
     category: "owner",
+    desc: "Change your WhatsApp profile name",
     use: ".setname YourNewName",
-    filename: __filename,
-    async run(conn, m, args) {
+    execute: async (conn, m, args) => {
         try {
             const text = args.join(" ");
             if (!text) {
@@ -17,7 +17,7 @@ module.exports = {
             await m.reply(`✅ Successfully updated profile name to: *${text}*`);
         } catch (err) {
             console.error(err);
-            await m.reply("❌ Error: Unable to update name. Check bot permissions.");
+            await m.reply("❌ Error: Unable to update name. Make sure bot has permission.");
         }
     }
 };
