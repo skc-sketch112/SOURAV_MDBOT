@@ -4,8 +4,11 @@ const path = require("path");
 const os = require("os");
 
 module.exports = {
-  command: "menu",
-  info: "Shows the main bot menu",
+  name: "menu",
+  command: ["menu", "help"],
+  description: "Shows the main bot menu",
+  category: "Main",
+
   async execute(sock, m) {
     try {
       const { performance } = require("perf_hooks");
@@ -46,3 +49,42 @@ module.exports = {
           else if (file.includes("anime")) category = "Anime";
           else if (file.includes("convert")) category = "Convert";
           else if (file.includes("reaction")) category = "Reactions";
+          else if (file.includes("main")) category = "Main";
+
+          if (!categories[category]) categories[category] = [];
+          categories[category].push(file.replace(".js", ""));
+        }
+      });
+
+      // Build Menu Message
+      let menuMsg = `╭━━━〔 *${botName}* 〕━━━╮\n`;
+      menuMsg += `👑 Owner : ${ownerName}\n`;
+      menuMsg += `💎 Version : ${version}\n`;
+      menuMsg += `📂 Plugins : ${totalPlugins}\n`;
+      menuMsg += `🚀 Speed : ${speed} ms\n`;
+      menuMsg += `⏳ Uptime : ${uptime}\n`;
+      menuMsg += `🌍 Timezone : ${timezone}\n`;
+      menuMsg += `🕒 Time : ${time}\n`;
+      menuMsg += `📅 Date : ${date}\n`;
+      menuMsg += `╰━━━━━━━━━━━━━━╯\n\n`;
+
+      // Category Wise Listing
+      Object.keys(categories).forEach((cat, i) => {
+        menuMsg += `\n📁 *${cat} Menu* (${categories[cat].length})\n`;
+        categories[cat].forEach((cmd, idx) => {
+          menuMsg += ` ${idx + 1}. ${cmd}\n`;
+        });
+      });
+
+      // Send with Image
+      await sock.sendMessage(m.key.remoteJid, {
+        image: { url: "./menu.jpg" }, // make sure menu.jpg is in same folder as menu.js
+        caption: menuMsg
+      }, { quoted: m });
+
+    } catch (e) {
+      console.error("❌ Error in menu.js:", e);
+      await sock.sendMessage(m.key.remoteJid, { text: "❌ Failed to load menu!" }, { quoted: m });
+    }
+  }
+};
