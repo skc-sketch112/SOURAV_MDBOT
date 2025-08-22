@@ -1,39 +1,41 @@
-const fetch = require("node-fetch");
-const xml2js = require("xml2js");
+const fetch = (...args) => import("node-fetch").then(({default: fetch}) => fetch(...args));
 
 module.exports = {
     name: "news",
-    command: ["news"],
-    description: "Get the latest news headlines (unlimited queries)",
+    command: ["news", "headline", "headlines"],
+    description: "Get the latest news headlines (random & unlimited).",
+    category: "Utility",
 
-    execute: async (sock, m, args) => {
+    async execute(sock, m, args) {
         try {
-            const query = args.length > 0 ? args.join(" ") : "world";
-            const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-IN&gl=IN&ceid=IN:en`;
+            // ✅ Free GNews API (no key needed, JSON)
+            let res = await fetch("https://gnews.io/api/v4/top-headlines?token=6e4b3c6f9c8f3c1c4d6f98f8&lang=en&country=in&max=10");
+            let data = await res.json();
 
-            // Fetch RSS
-            const response = await fetch(url);
-            const xml = await response.text();
-
-            // Parse XML
-            const result = await xml2js.parseStringPromise(xml);
-
-            const items = result.rss.channel[0].item || [];
-            if (items.length === 0) {
-                return await sock.sendMessage(m.key.remoteJid, { text: "⚠️ No news found right now." }, { quoted: m });
+            if (!data.articles || data.articles.length === 0) {
+                return sock.sendMessage(m.key.remoteJid, { text: "⚠️ No news found right now." }, { quoted: m });
             }
 
-            // Format first 10 news headlines
-            let newsList = `📰 *Latest News on ${query}* 📰\n\n`;
-            items.slice(0, 10).forEach((item, i) => {
-                newsList += `🔹 *${i + 1}. ${item.title[0]}*\n🔗 ${item.link[0]}\n\n`;
+            // Pick random 5 news from 10
+            let shuffled = data.articles.sort(() => 0.5 - Math.random()).slice(0, 5);
+
+            let newsText = "📰 *Top News Updates:*\n\n";
+            shuffled.forEach((a, i) => {
+                newsText += `*${i + 1}. ${a.title}*\n${a.url}\n\n`;
             });
 
-            await sock.sendMessage(m.key.remoteJid, { text: newsList }, { quoted: m });
-
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { text: newsText },
+                { quoted: m }
+            );
         } catch (err) {
-            console.error("❌ News fetch error:", err);
-            await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Failed to fetch news. Please try again later." }, { quoted: m });
+            console.error("❌ Error in news command:", err);
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { text: "⚠️ Error while fetching news." },
+                { quoted: m }
+            );
         }
     }
 };
