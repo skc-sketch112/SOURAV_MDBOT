@@ -1,52 +1,38 @@
 const fetch = require("node-fetch");
-const { parseStringPromise } = require("xml2js");
 
 module.exports = {
-  name: "news",
-  command: ["news", "headlines", "latestnews"],
-  description: "Unlimited free news without API key (Google News RSS)",
+    name: "news",
+    command: ["news"],
+    description: "Get unlimited latest news headlines from Google News",
+    async execute(sock, m, args) {
+        try {
+            let topic = args.length > 0 ? args.join(" ") : "world"; // default: world news
+            let url = `https://news.google.com/rss/search?q=${encodeURIComponent(topic)}&hl=en-IN&gl=IN&ceid=IN:en`;
 
-  execute: async (sock, m, args) => {
-    const jid = m.key.remoteJid;
+            let res = await fetch(url);
+            if (!res.ok) throw new Error("Failed to fetch news.");
+            let xml = await res.text();
 
-    let query = args.join(" ").trim();
-    let feedUrl;
+            // 📰 Extract titles & links using regex
+            let items = [...xml.matchAll(/<item><title><!\[CDATA\[(.*?)\]\]><\/title><link>(.*?)<\/link>/g)]
+                .map(match => ({ title: match[1], link: match[2] }));
 
-    if (query) {
-      // Search-based feed
-      feedUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-IN&gl=IN&ceid=IN:en`;
-    } else {
-      // Top headlines feed
-      feedUrl = `https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en`;
+            if (items.length === 0) {
+                await sock.sendMessage(m.key.remoteJid, { text: "⚠️ No news found, try another topic." }, { quoted: m });
+                return;
+            }
+
+            // 📋 Format unlimited news
+            let newsText = `📰 *Latest News on ${topic.toUpperCase()}* 📰\n\n`;
+            items.slice(0, 15).forEach((item, i) => {
+                newsText += `*${i + 1}. ${item.title}*\n🔗 ${item.link}\n\n`;
+            });
+
+            await sock.sendMessage(m.key.remoteJid, { text: newsText }, { quoted: m });
+
+        } catch (err) {
+            console.error("❌ News error:", err);
+            await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Failed to fetch news right now. Please try again later." }, { quoted: m });
+        }
     }
-
-    try {
-      const res = await fetch(feedUrl, { timeout: 15000 });
-      if (!res.ok) throw new Error("Bad response from News RSS");
-      const xml = await res.text();
-
-      // Parse RSS XML
-      const json = await parseStringPromise(xml, { explicitArray: false });
-      const items = json.rss.channel.item;
-
-      if (!items || items.length === 0) {
-        await sock.sendMessage(jid, { text: "❌ No news found right now." }, { quoted: m });
-        return;
-      }
-
-      // Pick top 6 articles
-      const topNews = (Array.isArray(items) ? items : [items]).slice(0, 6);
-
-      let caption = `📰 *Latest News${query ? " on " + query : ""}*\n\n`;
-      topNews.forEach((n, i) => {
-        caption += `*${i + 1}. ${n.title}*\n${n.link}\n\n`;
-      });
-
-      await sock.sendMessage(jid, { text: caption.trim() }, { quoted: m });
-
-    } catch (err) {
-      console.error("❌ News plugin error:", err);
-      await sock.sendMessage(jid, { text: "⚠️ Could not fetch news right now. Please try again." }, { quoted: m });
-    }
-  }
 };
