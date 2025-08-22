@@ -1,41 +1,56 @@
-// plugins/antiban.js
-let antiBanEnabled = true; // default ON
+// Global antiban state
+let antiBanEnabled = true;
 
 module.exports = {
-    name: "Anti-Ban System",
+    name: "antiban",
     command: ["antiban"],
-    info: "Toggle Anti-Ban (add delay + typing presence)",
+    description: "Toggle Anti-Ban protection (on/off).",
+    category: "Security",
+
     async execute(sock, m, args) {
-        const jid = m.key.remoteJid;
+        try {
+            if (!args[0]) {
+                return sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: `⚙️ Anti-Ban is currently *${antiBanEnabled ? "ON ✅" : "OFF ❌"}*\n\nUse:\n.antiban on\n.antiban off` },
+                    { quoted: m }
+                );
+            }
 
-        if (!args[0]) {
-            await sock.sendMessage(jid, {
-                text: `🔒 Anti-Ban is currently *${antiBanEnabled ? "ON ✅" : "OFF ❌"}*\n\nUse:\n.antiban on\n.antiban off`
-            }, { quoted: m });
-            return;
-        }
-
-        if (args[0].toLowerCase() === "on") {
-            antiBanEnabled = true;
-            await sock.sendMessage(jid, { text: "✅ Anti-Ban Mode is now *ON*" }, { quoted: m });
-        } else if (args[0].toLowerCase() === "off") {
-            antiBanEnabled = false;
-            await sock.sendMessage(jid, { text: "❌ Anti-Ban Mode is now *OFF*" }, { quoted: m });
-        } else {
-            await sock.sendMessage(jid, { text: "⚠️ Invalid option. Use `.antiban on` or `.antiban off`" }, { quoted: m });
+            let option = args[0].toLowerCase();
+            if (option === "on") {
+                antiBanEnabled = true;
+                await sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: "🛡️ Anti-Ban has been *ENABLED* ✅" },
+                    { quoted: m }
+                );
+            } else if (option === "off") {
+                antiBanEnabled = false;
+                await sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: "🚫 Anti-Ban has been *DISABLED* ❌" },
+                    { quoted: m }
+                );
+            } else {
+                await sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: "⚠️ Invalid option. Use `.antiban on` or `.antiban off`" },
+                    { quoted: m }
+                );
+            }
+        } catch (err) {
+            console.error("❌ Error in antiban command:", err);
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { text: "⚠️ Error while toggling Anti-Ban." },
+                { quoted: m }
+            );
         }
     },
-    // 🔥 Middleware hook
-    async applyAntiBan(sock, m) {
-        if (!antiBanEnabled) return;
 
-        const jid = m.key.remoteJid;
-
-        // Simulate typing
-        await sock.sendPresenceUpdate("composing", jid);
-
-        // Delay 500ms – 2000ms
-        const delay = ms => new Promise(r => setTimeout(r, ms));
-        await delay(500 + Math.random() * 1500);
+    // 🚨 This will be checked before processing risky actions
+    isEnabled() {
+        return antiBanEnabled;
     }
 };
