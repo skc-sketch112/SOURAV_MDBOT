@@ -1,11 +1,8 @@
-const { evaluate } = require("mathjs");
-const mathsteps = require("mathsteps");
-
 module.exports = {
   name: "calculator",
-  command: ["calc", "calculate", "math", "solve"],
+  command: ["calc", "calculator"],
   category: "tools",
-  description: "Solve any math expression with step-by-step solution",
+  description: "Solve math expressions (unlimited numbers)",
   use: ".calc <expression>",
 
   execute: async (sock, m, args) => {
@@ -15,38 +12,32 @@ module.exports = {
       return sock.sendMessage(jid, { text }, { quoted: m });
     };
 
-    if (!args.length) {
-      return reply("❌ Please provide a math expression.\nExample: `.calc (12+8)*3^2`");
+    if (args.length === 0) {
+      return reply("❌ Please enter a math expression.\nExample: `.calc (5000*200)+100`");
     }
-
-    const expr = args.join(" ");
 
     try {
-      // ✅ Step 1: Direct calculation with mathjs
-      const result = evaluate(expr);
+      let expr = args.join(" ");
 
-      // ✅ Step 2: Try generating step-by-step using mathsteps
-      let stepsText = "";
-      try {
-        const steps = mathsteps.simplifyExpression(expr);
-        if (steps.length > 0) {
-          stepsText = "\n\n📘 *Step-by-Step*:\n";
-          steps.forEach((step, i) => {
-            stepsText += `👉 Step ${i + 1}: ${step.changeType}\n   ${step.oldNode.toString()} ➝ ${step.newNode.toString()}\n`;
-          });
-        }
-      } catch (e) {
-        stepsText = "\nℹ️ No step-by-step available for this expression.";
+      // Safe eval (only numbers and operators allowed)
+      if (!/^[0-9+\-*/().\s%^]*$/.test(expr)) {
+        return reply("⚠️ Invalid expression. Use only numbers and + - * / % ^ ()");
       }
 
-      // ✅ Final reply
-      return reply(
-        `🧮 *CALCULATOR*\n\n📥 Expression: ${expr}\n📤 Result: ${result}${stepsText}`
-      );
+      // Use Function constructor for safe evaluation
+      let result = Function(`"use strict"; return (${expr})`)();
+
+      if (result === undefined || isNaN(result)) {
+        return reply("⚠️ Could not calculate. Please check your expression.");
+      }
+
+      await sock.sendMessage(jid, {
+        text: `🧮 *Calculator Result*\n\n📥 Expression: ${expr}\n📤 Result: ${result}`
+      }, { quoted: m });
 
     } catch (err) {
-      console.error("calc error:", err.message);
-      return reply("❌ Invalid expression. Try again.\nExample: `.calc (12+8)*3^2`");
+      console.error("calculator.js error:", err);
+      reply("❌ Error calculating expression.");
     }
-  }
+  },
 };
