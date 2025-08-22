@@ -2,81 +2,52 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 
 module.exports = {
-    name: "APK Downloader",
-    command: ["apk", "app", "getapk"],
-    description: "Search and download APK files (unlimited, no error).",
-
+    name: "apk",
+    command: ["apk"],
+    description: "Search APKs from ApkPure",
     async execute(sock, m, args) {
-        const query = args.join(" ");
-        if (!query) {
-            return sock.sendMessage(m.key.remoteJid, { text: "❌ Please provide an app name.\n\nExample: `.apk whatsapp`" }, { quoted: m });
-        }
-
         try {
-            await sock.sendMessage(m.key.remoteJid, { text: `🔎 Searching APK for: *${query}* ...` }, { quoted: m });
-
-            // === Search from ApkCombo ===
-            const searchUrl = `https://apkcombo.com/en/search/?q=${encodeURIComponent(query)}`;
-            const { data } = await axios.get(searchUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
-            const $ = cheerio.load(data);
-
-            let results = [];
-            $(".search-result a").each((i, el) => {
-                if (i < 5) {
-                    results.push({
-                        name: $(el).find(".title").text().trim(),
-                        link: "https://apkcombo.com" + $(el).attr("href"),
-                        icon: $(el).find("img").attr("src")
-                    });
-                }
-            });
-
-            if (results.length === 0) {
-                return sock.sendMessage(m.key.remoteJid, { text: `❌ No results found for: *${query}*` }, { quoted: m });
+            if (!args[0]) {
+                return sock.sendMessage(m.key.remoteJid, { text: "❌ Usage: .apk <app name>" }, { quoted: m });
             }
 
-            let caption = `📱 *Top APK Results for: ${query}*\n\n`;
-            results.forEach((res, i) => {
-                caption += `*${i + 1}. ${res.name}*\n🔗 ${res.link}\n\n`;
-            });
+            const query = args.join(" ");
+            const searchUrl = `https://apkpure.com/search?q=${encodeURIComponent(query)}`;
 
-            await sock.sendMessage(m.key.remoteJid, { text: caption }, { quoted: m });
+            await sock.sendMessage(m.key.remoteJid, { text: `🔍 Searching for *${query}*...` }, { quoted: m });
 
-            // === Try to fetch direct download for first app ===
-            try {
-                const firstApp = results[0];
-                const { data: appPage } = await axios.get(firstApp.link, { headers: { "User-Agent": "Mozilla/5.0" } });
-                const $$ = cheerio.load(appPage);
+            const { data } = await axios.get(searchUrl, { timeout: 15000 });
+            const $ = cheerio.load(data);
 
-                let dlPage = $$(".variant").first().find("a").attr("href");
-                if (!dlPage) dlPage = $$(".apk").attr("href"); // fallback
+            let firstApp = $(".main .search-dl .info")
+                .first();
 
-                if (dlPage) {
-                    const fullDlPage = "https://apkcombo.com" + dlPage;
-                    const { data: dlData } = await axios.get(fullDlPage, { headers: { "User-Agent": "Mozilla/5.0" } });
-                    const $$$ = cheerio.load(dlData);
-                    const finalLink = $$$("a#download_button").attr("href");
+            if (!firstApp || firstApp.length === 0) {
+                return sock.sendMessage(m.key.remoteJid, { text: "⚠️ No results found." }, { quoted: m });
+            }
 
-                    if (finalLink) {
-                        await sock.sendMessage(m.key.remoteJid, {
-                            document: { url: finalLink },
-                            mimetype: "application/vnd.android.package-archive",
-                            fileName: `${firstApp.name}.apk`
-                        }, { quoted: m });
-                    } else {
-                        await sock.sendMessage(m.key.remoteJid, { text: `⚠️ Could not fetch direct APK for ${firstApp.name}. Use the website link above.` }, { quoted: m });
-                    }
-                } else {
-                    await sock.sendMessage(m.key.remoteJid, { text: "⚠️ No direct APK found, use the link above." }, { quoted: m });
-                }
-            } catch (innerErr) {
-                console.error("⚠️ Download link fetch failed:", innerErr.message);
-                await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Could not auto-download APK, but links are provided above ✅" }, { quoted: m });
+            const title = firstApp.find("a").attr("title") || "Unknown App";
+            const link = "https://apkpure.com" + firstApp.find("a").attr("href");
+            const icon = firstApp.parent().find("img").attr("src") || null;
+
+            let msg = `📱 *App Found!*\n\n`;
+            msg += `🔤 Name: ${title}\n`;
+            msg += `🔗 Link: ${link}\n\n`;
+            msg += `⬇️ Download from ApkPure`;
+
+            if (icon) {
+                await sock.sendMessage(
+                    m.key.remoteJid,
+                    { image: { url: icon }, caption: msg },
+                    { quoted: m }
+                );
+            } else {
+                await sock.sendMessage(m.key.remoteJid, { text: msg }, { quoted: m });
             }
 
         } catch (err) {
-            console.error("❌ APK Error:", err);
-            await sock.sendMessage(m.key.remoteJid, { text: "❌ Error while fetching APK. Please try again later." }, { quoted: m });
+            console.error("APK Command Error:", err.message);
+            await sock.sendMessage(m.key.remoteJid, { text: "❌ Error while searching APK. Try again later." }, { quoted: m });
         }
     }
 };
