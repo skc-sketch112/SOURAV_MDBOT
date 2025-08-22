@@ -2,94 +2,87 @@ const fetch = require("node-fetch");
 
 module.exports = {
   name: "news",
-  command: ["news", "headlines"],
-  description: "Get latest headlines (free, no key) with fallback if a source is down",
+  command: ["news", "headline", "updates"],
+  description: "Get latest unlimited free news headlines",
 
   execute: async (sock, m, args) => {
     const jid = m.key.remoteJid;
-
-    // Parse args: category + count (e.g., ".news world 7")
-    let categoryRaw = (args[0] || "world").toLowerCase();
-    let count = Math.min(Math.max(parseInt(args[1]) || 5, 1), 10); // 1..10
-
-    // Category help
-    if (categoryRaw === "categories" || categoryRaw === "cats" || categoryRaw === "help") {
-      const list = [
-        "world", "national", "business", "sports", "technology", "entertainment",
-        "science", "automobile", "politics", "startup", "miscellaneous", "hatke"
-      ];
-      const msg = `📰 *News Categories*\n\n${list.map(c => `• ${c}`).join("\n")}\n\n` +
-                  `Try: .news world 7`;
-      await sock.sendMessage(jid, { text: msg }, { quoted: m });
-      return;
-    }
-
-    // Map some friendly aliases
-    const aliases = {
-      tech: "technology",
-      sci: "science",
-      biz: "business",
-      ent: "entertainment",
-      auto: "automobile",
-      misc: "miscellaneous",
-    };
-    const category = aliases[categoryRaw] || categoryRaw;
+    let query = args.join(" ") || "latest";
 
     try {
-      // 1) PRIMARY: Inshorts (public JSON mirror)
-      // Example: https://inshorts.deta.dev/news?category=world
-      const primaryURL = `https://inshorts.deta.dev/news?category=${encodeURIComponent(category)}`;
-      const primaryRes = await safeFetch(primaryURL, 9000);
-      if (primaryRes.ok) {
-        const data = await primaryRes.json();
-        if (data?.success && Array.isArray(data?.data) && data.data.length) {
-          const items = data.data.slice(0, count);
-          const lines = items.map((it, i) => {
-            const title = it.title || "Untitled";
-            const source = it.author ? ` — ${it.author}` : "";
-            const link = it.readMoreUrl || it.url || "";
-            return `*${i + 1}.* ${title}${source}\n${link}`;
-          });
-          const header = `🗞️ *Top ${capitalize(category)} Headlines* (${items.length})\n`;
-          await sock.sendMessage(jid, { text: `${header}\n${lines.join("\n\n")}` }, { quoted: m });
-          return;
+      let articles = [];
+
+      // 1️⃣ Try GNews API (free mirror)
+      try {
+        const gnewsURL = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&token=1f3b13da8f2f3d77e6e6d8c2`;
+        const res = await safeFetch(gnewsURL, 8000);
+        const data = await res.json();
+        if (data && data.articles && data.articles.length > 0) {
+          articles = data.articles.map(a => ({
+            title: a.title,
+            url: a.url,
+            desc: a.description || ""
+          }));
+        }
+      } catch (e) {
+        console.log("⚠️ GNews failed, trying fallback...");
+      }
+
+      // 2️⃣ Fallback: Inshorts API (community)
+      if (articles.length === 0) {
+        try {
+          const res = await safeFetch(`https://inshortsapi.vercel.app/news?category=${query}`, 8000);
+          const data = await res.json();
+          if (data && data.data && data.data.length > 0) {
+            articles = data.data.map(a => ({
+              title: a.title,
+              url: a.url,
+              desc: a.content || ""
+            }));
+          }
+        } catch (e) {
+          console.log("⚠️ Inshorts failed, trying fallback...");
         }
       }
 
-      // 2) FALLBACK: Hacker News (official, no key)
-      // top stories -> fetch item details
-      const topURL = "https://hacker-news.firebaseio.com/v0/topstories.json";
-      const topRes = await safeFetch(topURL, 9000);
-      if (!topRes.ok) throw new Error("HN top stories failed");
-      const ids = (await topRes.json()).slice(0, Math.max(count, 10)); // fetch a little extra
-      const items = await fetchHNItems(ids, count);
+      // 3️⃣ Fallback: Reddit RSS News
+      if (articles.length === 0) {
+        try {
+          const res = await safeFetch("https://www.reddit.com/r/news/.json?limit=10", 8000);
+          const data = await res.json();
+          if (data && data.data && data.data.children) {
+            articles = data.data.children.map(c => ({
+              title: c.data.title,
+              url: `https://reddit.com${c.data.permalink}`,
+              desc: ""
+            }));
+          }
+        } catch (e) {
+          console.log("⚠️ Reddit fallback also failed...");
+        }
+      }
 
-      if (items.length) {
-        const header = `👨‍💻 *Top Tech Headlines* (Fallback) (${items.length})\n`;
-        const lines = items.map((it, i) => {
-          const title = it.title || "Untitled";
-          const link = it.url || `https://news.ycombinator.com/item?id=${it.id}`;
-          return `*${i + 1}.* ${title}\n${link}`;
-        });
-        await sock.sendMessage(jid, { text: `${header}\n${lines.join("\n\n")}` }, { quoted: m });
+      if (articles.length === 0) {
+        await sock.sendMessage(jid, { text: "⚠️ Couldn’t fetch news right now. Try again later." }, { quoted: m });
         return;
       }
 
-      throw new Error("No items from both sources");
+      // Format response
+      let text = `📰 *Top ${query} News*\n\n`;
+      articles.slice(0, 7).forEach((a, i) => {
+        text += `*${i + 1}. ${a.title}*\n${a.desc ? a.desc + "\n" : ""}🔗 ${a.url}\n\n`;
+      });
+
+      await sock.sendMessage(jid, { text }, { quoted: m });
+
     } catch (err) {
-      console.error("❌ News plugin error:", err);
-      await sock.sendMessage(
-        jid,
-        { text: "⚠️ Unable to fetch news right now. Please try again in a moment." },
-        { quoted: m }
-      );
+      console.error("❌ News error:", err);
+      await sock.sendMessage(jid, { text: "⚠️ Error fetching news. Try again later." }, { quoted: m });
     }
-  },
+  }
 };
 
 /* -------------------- Helpers -------------------- */
-
-// Fetch with timeout
 async function safeFetch(url, timeoutMs = 8000) {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -98,26 +91,4 @@ async function safeFetch(url, timeoutMs = 8000) {
   } finally {
     clearTimeout(id);
   }
-}
-
-// Fetch Hacker News items (title + url)
-async function fetchHNItems(ids, needCount) {
-  const itemURL = (id) => `https://hacker-news.firebaseio.com/v0/item/${id}.json`;
-  const results = [];
-  for (const id of ids) {
-    if (results.length >= needCount) break;
-    try {
-      const res = await safeFetch(itemURL(id), 8000);
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (data && data.title) results.push({ id, title: data.title, url: data.url || "" });
-    } catch (_) {
-      // skip failed item
-    }
-  }
-  return results.slice(0, needCount);
-}
-
-function capitalize(s = "") {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
