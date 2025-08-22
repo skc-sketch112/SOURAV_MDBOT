@@ -1,23 +1,30 @@
-<h1 align="center">🤖 SOURAV_MD BOT</h1>
+<!-- ================================================= -->
+<!--           SOURAV_MD - WhatsApp Bot README          -->
+<!-- ================================================= -->
+
+<h1 align="center">
+  <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=700&size=28&pause=1000&color=00F700&center=true&vCenter=true&width=500&lines=🤖+Welcome+to+SOURAV_MD+Bot;⚡+Fast+Stable+Powerful;🛡️+Anti-Ban+Protection;🚀+Deploy+and+Enjoy!" alt="SOURAV_MD">
+</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Maintained-Yes-brightgreen?style=for-the-badge">
-  <img src="https://img.shields.io/github/license/sourav-md/sourav_md?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Author-Sourav-blue?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Bot-SOURAV_MD-green?style=for-the-badge">
   <img src="https://img.shields.io/github/stars/sourav-md/sourav_md?style=for-the-badge">
+  <img src="https://img.shields.io/github/forks/sourav-md/sourav_md?style=for-the-badge">
 </p>
 
 ---
 
 ## 🌟 About
 
-**SOURAV_MD** is a powerful WhatsApp Multi-Device bot created by **Sourav**.  
-It supports plugins, commands, and is designed for stability, speed, and easy deployment.
+**SOURAV_MD** is a next-generation WhatsApp Multi-Device Bot built by **Sourav**.  
+It is lightweight, stable, and designed for **non-stop 24/7 uptime**.
 
 ---
 
 ## 🚀 Deployment
 
-You can deploy **SOURAV_MD** easily on free hosting platforms:
+Easily deploy **SOURAV_MD** to your favorite free hosting:
 
 <p align="center">
   <a href="https://render.com" target="_blank">
@@ -35,11 +42,12 @@ You can deploy **SOURAV_MD** easily on free hosting platforms:
 
 ## 📂 Features
 
-- ⚡ Fast and Lightweight  
-- 🛡️ Anti-Ban Protection  
-- 🔌 Plugin System (easy to add commands)  
-- 🌐 Keep Alive Server (Render/Glitch/Replit supported)  
+- ⚡ Super Fast & Lightweight  
+- 🛡️ Built-in Anti-Ban Layer  
+- 🔌 Plugin System (Easy to Extend)  
+- 🌐 Keep Alive Server (Render/Glitch/Replit)  
 - 🤖 Auto Reconnect on Disconnect  
+- 🎨 Animated Branding with Style  
 
 ---
 
@@ -54,5 +62,4 @@ cd sourav_md
 npm install
 
 # Start bot
-node index.js SOURAV_MDBOT
-POWERFUL BOT BY SOURAV
+node index.js
