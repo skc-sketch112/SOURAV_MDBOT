@@ -65,7 +65,7 @@ module.exports = {
                 const res2 = await axios.get(`https://api.unsplash.com/search/photos`, {
                     params: { query, per_page: 10 },
                     headers: {
-                        Authorization: "Client-ID YOUR_UNSPLASH_ACCESS_KEY"
+                        Authorization: "Client-ID Uebb0QGhkVela_0V0ZidmqYXDqAEHRYpV2UnemVHgLY"
                     },
                 });
 
