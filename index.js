@@ -1,9 +1,16 @@
 // ================== IMPORTS ==================
 const express = require("express");
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require("@whiskeysockets/baileys");
+const {
+    default: makeWASocket,
+    useMultiFileAuthState,
+    DisconnectReason,
+    fetchLatestBaileysVersion
+} = require("@whiskeysockets/baileys");
 const pino = require("pino");
 const fs = require("fs");
 const path = require("path");
+const axios = require("axios");
+const fetch = require("node-fetch");
 
 // ================== KEEP ALIVE SERVER ==================
 const app = express();
@@ -28,7 +35,7 @@ const PLUGIN_DIR = path.join(__dirname, "plugins");
 
 function loadPlugin(file) {
     try {
-        delete require.cache[require.resolve(path.join(PLUGIN_DIR, file))]; // hot reload
+        delete require.cache[require.resolve(path.join(PLUGIN_DIR, file))];
         const plugin = require(path.join(PLUGIN_DIR, file));
 
         let pluginName = plugin.name || file.replace(".js", "");
@@ -42,9 +49,7 @@ function loadPlugin(file) {
             aliases = [pluginName.toLowerCase()];
         }
 
-        aliases.forEach(alias => {
-            commands.set(alias, plugin);
-        });
+        aliases.forEach(alias => commands.set(alias, plugin));
 
         console.log(`✅ Loaded plugin: ${pluginName} [${aliases.join(", ")}]`);
     } catch (err) {
@@ -60,8 +65,9 @@ function loadPlugins() {
         }
     });
 }
+loadPlugins();
 
-// Watch plugin folder for changes
+// Hot reload plugins
 fs.watch(PLUGIN_DIR, (eventType, filename) => {
     if (filename && filename.endsWith(".js")) {
         console.log(`♻️ Plugin change detected: ${filename}, reloading...`);
@@ -69,39 +75,35 @@ fs.watch(PLUGIN_DIR, (eventType, filename) => {
     }
 });
 
-loadPlugins();
-
-// ================== ANTI-BAN SYSTEM ==================
+// ================== ANTI-BAN ==================
 let antiBanEnabled = true;
-
 async function applyAntiBan(sock, m) {
     if (!antiBanEnabled) return;
-
     const jid = m.key.remoteJid;
     try {
         await sock.sendPresenceUpdate("composing", jid);
-        await new Promise(r => setTimeout(r, 300 + Math.random() * 700));
+        await new Promise(r => setTimeout(r, 500 + Math.random() * 1000));
     } catch { }
 }
 
 // ================== START BOT ==================
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState("auth");
+    const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
         logger: pino({ level: "silent" }),
         printQRInTerminal: false,
         auth: state,
-        connectTimeoutMs: 60_000, // longer timeout for API calls
-        defaultQueryTimeoutMs: 0 // never auto-timeout API
+        version
     });
 
-    // QR Code Link in Console
+    // QR / Pairing
     sock.ev.on("connection.update", (update) => {
         const { connection, qr } = update;
         if (qr) {
+            console.log("📲 Scan this QR to connect:");
             console.log(
-                "📲 Scan this QR to connect:\n" +
                 `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`
             );
         }
@@ -114,10 +116,9 @@ async function startBot() {
                 setTimeout(startBot, 5000);
             }
         } else if (connection === "open") {
-            console.log("✅ Bot connected!");
+            console.log("✅ Bot connected successfully!");
         }
     });
-
     sock.ev.on("creds.update", saveCreds);
 
     // ================== MESSAGE HANDLER ==================
@@ -132,7 +133,7 @@ async function startBot() {
             m.message.videoMessage?.caption ||
             "";
 
-        // ✅ Auto-run "onMessage" plugins even if no prefix
+        // 🔹 Run onMessage plugins
         for (let plugin of commands.values()) {
             if (typeof plugin.onMessage === "function") {
                 try {
@@ -143,43 +144,33 @@ async function startBot() {
             }
         }
 
-        // ✅ Only commands with prefix `.`
+        // 🔹 Commands with prefix `.`
         if (!body.startsWith(".")) return;
-
         let args = body.slice(1).trim().split(/\s+/);
         let cmd = args.shift().toLowerCase();
 
         let command = commands.get(cmd);
-
         if (command && typeof command.execute === "function") {
             try {
                 await applyAntiBan(sock, m);
-                await command.execute(sock, m, args);
+                await command.execute(sock, m, args, { axios, fetch });
                 console.log(`⚡ Command executed: ${cmd}`);
             } catch (err) {
                 console.error(`❌ Error in command ${cmd}:`, err);
                 await sock.sendMessage(
                     m.key.remoteJid,
-                    { text: `⚠️ Error while executing: ${cmd}\n\n${err.message}` },
+                    { text: `⚠️ Error while executing: ${cmd}\n${err.message}` },
                     { quoted: m }
                 );
             }
-        } else {
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: `⚠️ Command not found: ${cmd}` },
-                { quoted: m }
-            );
         }
     });
 
-    // ================== AUTOREACT SYSTEM ==================
-    global.autoReact = false; // default OFF
-
+    // ================== AUTOREACT ==================
+    global.autoReact = false;
     sock.ev.on("messages.upsert", async ({ messages }) => {
         try {
             if (!global.autoReact) return;
-
             const msg = messages[0];
             if (!msg.message || msg.key.fromMe) return;
 
