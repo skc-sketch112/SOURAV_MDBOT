@@ -1,0 +1,56 @@
+const fs = require("fs");
+const path = require("path");
+
+module.exports = {
+  name: "url2",
+  command: ["url2", "imgurl", "geturl"],
+  description: "Get direct URL of any image",
+
+  async execute(sock, m, args, command) {
+    try {
+      const sender = m.key.remoteJid;
+
+      // Check if message has an image
+      let imgMessage;
+      if (m.message?.imageMessage) {
+        imgMessage = m;
+      } else if (m.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage) {
+        imgMessage = {
+          message: m.message.extendedTextMessage.contextInfo.quotedMessage
+        };
+      }
+
+      if (!imgMessage) {
+        return sock.sendMessage(sender, {
+          text: "🖼️ Please send or reply to an image with *.url2*"
+        });
+      }
+
+      // Download the image
+      const imgBuffer = await sock.downloadMediaMessage(imgMessage);
+      const fileName = `image_${Date.now()}.jpg`;
+      const filePath = path.join(__dirname, fileName);
+
+      fs.writeFileSync(filePath, imgBuffer);
+
+      // Upload to Telegra.ph for free hosting
+      const { exec } = require("child_process");
+      exec(`curl -F "file=@${filePath}" https://telegra.ph/upload`, async (err, stdout) => {
+        fs.unlinkSync(filePath);
+        if (err) {
+          console.error("❌ Upload error:", err);
+          return sock.sendMessage(sender, { text: "⚠️ Failed to upload image. Try again!" });
+        }
+
+        try {
+          const response = JSON.parse(stdout);
+          if (response.error) {
+            return sock.sendMessage(sender, { text: "❌ Error: " + response.error });
+          }
+
+          const imageUrl = "https://telegra.ph" + response[0].src;
+
+          await sock.sendMessage(sender, {
+            text: `✅ Direct Image URL:\n${imageUrl}`
+          });
+        } catch (e) {
