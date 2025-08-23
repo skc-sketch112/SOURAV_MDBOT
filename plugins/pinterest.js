@@ -16,30 +16,26 @@ module.exports = {
             }
 
             const query = args.join(" ");
-            await sock.sendMessage(m.key.remoteJid, { text: `🔍 Searching Pinterest for *${query}* ...` }, { quoted: m });
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { text: `🔍 Searching Pinterest for *${query}* ...` },
+                { quoted: m }
+            );
 
-            let results = [];
+            // ✅ New stable API
+            const url = `https://api.xyroinee.xyz/api/pinterest?text=${encodeURIComponent(query)}&apikey=free`;
+            const res = await axios.get(url, { timeout: 20000 });
 
-            // 🌐 Try first API
-            try {
-                const res = await axios.get(`https://pinterest-api-one.vercel.app/?q=${encodeURIComponent(query)}`, { timeout: 15000 });
-                if (res.data && Array.isArray(res.data)) results = res.data;
-            } catch (e) {
-                console.log("⚠️ API 1 failed, trying fallback...");
-            }
-
-            // 🔁 Fallback API if first fails
-            if (!results.length) {
-                const res2 = await axios.get(`https://bx-hunter.herokuapp.com/api/pinterest?text=${encodeURIComponent(query)}&apikey=freeapi`, { timeout: 15000 });
-                if (res2.data && res2.data.result) results = res2.data.result;
-            }
-
-            if (!results.length) {
-                return await sock.sendMessage(m.key.remoteJid, { text: "⚠️ No results found for your search." }, { quoted: m });
+            if (!res.data || !res.data.data || res.data.data.length === 0) {
+                return await sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: "⚠️ No results found." },
+                    { quoted: m }
+                );
             }
 
             // 🎲 Random pick
-            const image = results[Math.floor(Math.random() * results.length)];
+            const image = res.data.data[Math.floor(Math.random() * res.data.data.length)];
 
             await sock.sendMessage(
                 m.key.remoteJid,
@@ -51,10 +47,10 @@ module.exports = {
             );
 
         } catch (err) {
-            console.error("❌ Pinterest command error:", err);
+            console.error("❌ Pinterest error:", err.message);
             await sock.sendMessage(
                 m.key.remoteJid,
-                { text: "⚠️ Error while fetching Pinterest images. Try again later." },
+                { text: "⚠️ Error fetching images. API might be down. Try later." },
                 { quoted: m }
             );
         }
