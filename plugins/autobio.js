@@ -8,7 +8,7 @@ module.exports = {
         const jid = m.key.remoteJid;
 
         if (!args[0]) {
-            return await sock.sendMessage(jid, { text: "⚠️ Usage: .autobio on/off/time/quotes/custom <text>" }, { quoted: m });
+            return sock.sendMessage(jid, { text: "⚠️ Usage: .autobio on/off/time/quotes/custom <text>" }, { quoted: m });
         }
 
         const option = args[0].toLowerCase();
@@ -16,29 +16,29 @@ module.exports = {
         if (option === "off") {
             clearInterval(autobioInterval);
             autobioInterval = null;
-            return await sock.sendMessage(jid, { text: "❌ AutoBio stopped." }, { quoted: m });
+            return sock.sendMessage(jid, { text: "❌ AutoBio stopped." }, { quoted: m });
         }
 
         if (option === "on" || option === "time") {
             startAutoBio(sock, "time");
-            return await sock.sendMessage(jid, { text: "✅ AutoBio started in ⏰ Time & Date mode." }, { quoted: m });
+            return sock.sendMessage(jid, { text: "✅ AutoBio started in ⏰ Time & Date mode." }, { quoted: m });
         }
 
         if (option === "quotes") {
             startAutoBio(sock, "quotes");
-            return await sock.sendMessage(jid, { text: "✅ AutoBio started in 💡 Quotes mode." }, { quoted: m });
+            return sock.sendMessage(jid, { text: "✅ AutoBio started in 💡 Quotes mode." }, { quoted: m });
         }
 
         if (option === "custom") {
             const text = args.slice(1).join(" ");
             if (!text) {
-                return await sock.sendMessage(jid, { text: "⚠️ Usage: .autobio custom <your text>" }, { quoted: m });
+                return sock.sendMessage(jid, { text: "⚠️ Usage: .autobio custom <your text>" }, { quoted: m });
             }
             startAutoBio(sock, "custom", text);
-            return await sock.sendMessage(jid, { text: `✅ AutoBio started in ✍️ Custom mode:\n${text}` }, { quoted: m });
+            return sock.sendMessage(jid, { text: `✅ AutoBio started in ✍️ Custom mode:\n${text}` }, { quoted: m });
         }
 
-        return await sock.sendMessage(jid, { text: "⚠️ Invalid option. Use .autobio on/off/time/quotes/custom" }, { quoted: m });
+        return sock.sendMessage(jid, { text: "⚠️ Invalid option. Use .autobio on/off/time/quotes/custom" }, { quoted: m });
     }
 };
 
@@ -72,16 +72,36 @@ function startAutoBio(sock, mode, customText = "") {
             }
 
             if (newBio) {
-                await sock.query({
-                    tag: "iq",
-                    attrs: { to: "@s.whatsapp.net", type: "set", xmlns: "status" },
-                    content: [{ tag: "status", attrs: {}, content: Buffer.from(newBio, "utf-8") }]
-                });
+                // ✅ Try new method (Baileys 6.x+)
+                try {
+                    await sock.query({
+                        tag: "iq",
+                        attrs: {
+                            to: "@s.whatsapp.net",
+                            type: "set",
+                            xmlns: "status"
+                        },
+                        content: [
+                            {
+                                tag: "status",
+                                attrs: {},
+                                content: Buffer.from(newBio, "utf-8")
+                            }
+                        ]
+                    });
+                } catch (e) {
+                    // ✅ Fallback to old method (Baileys < 6)
+                    try {
+                        await sock.updateProfileStatus(newBio);
+                    } catch (err) {
+                        console.error("❌ Both methods failed:", err);
+                    }
+                }
 
-                console.log(`✅ AutoBio Updated: ${newBio}`);
+                console.log("✅ Bio updated to:", newBio);
             }
         } catch (err) {
             console.error("❌ Error updating bio:", err);
         }
-    }, 1000 * 60 * 2); // every 2 minutes (safe)
-                }
+    }, 1000 * 60 * 2); // updates every 2 min
+}
