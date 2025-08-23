@@ -1,107 +1,84 @@
 // plugins/autobio.js
-let autobioInterval = null;
-
 module.exports = {
     name: "autobio",
     command: ["autobio"],
+    description: "Auto bio update with custom template + time/date",
+    autobioInterval: null,
+    autobioTemplate: "⚡ Sourav_MD Bot Active | ⏰ {time} | 📅 {date}",
+
     execute: async (sock, m, args) => {
         const jid = m.key.remoteJid;
+        const option = args[0]?.toLowerCase();
 
-        if (!args[0]) {
-            return sock.sendMessage(jid, { text: "⚠️ Usage: .autobio on/off/time/quotes/custom <text>" }, { quoted: m });
+        // No args → show help
+        if (!option) {
+            await sock.sendMessage(jid, { 
+                text: `⚡ AutoBio Commands:
+.autobio on → Start AutoBio
+.autobio off → Stop AutoBio
+.autobio set Your custom text → Set new template (use {time} {date})
+Current Template: ${module.exports.autobioTemplate}`
+            }, { quoted: m });
+            return;
         }
 
-        const option = args[0].toLowerCase();
-
-        if (option === "off") {
-            clearInterval(autobioInterval);
-            autobioInterval = null;
-            return sock.sendMessage(jid, { text: "❌ AutoBio stopped." }, { quoted: m });
-        }
-
-        if (option === "on" || option === "time") {
-            startAutoBio(sock, "time");
-            return sock.sendMessage(jid, { text: "✅ AutoBio started in ⏰ Time & Date mode." }, { quoted: m });
-        }
-
-        if (option === "quotes") {
-            startAutoBio(sock, "quotes");
-            return sock.sendMessage(jid, { text: "✅ AutoBio started in 💡 Quotes mode." }, { quoted: m });
-        }
-
-        if (option === "custom") {
-            const text = args.slice(1).join(" ");
-            if (!text) {
-                return sock.sendMessage(jid, { text: "⚠️ Usage: .autobio custom <your text>" }, { quoted: m });
+        // Turn ON AutoBio
+        if (option === "on") {
+            if (module.exports.autobioInterval) {
+                await sock.sendMessage(jid, { text: "✅ AutoBio is already running!" }, { quoted: m });
+                return;
             }
-            startAutoBio(sock, "custom", text);
-            return sock.sendMessage(jid, { text: `✅ AutoBio started in ✍️ Custom mode:\n${text}` }, { quoted: m });
+
+            const updateBio = async () => {
+                try {
+                    const now = new Date();
+                    const time = now.toLocaleTimeString("en-IN", { hour12: true });
+                    const date = now.toLocaleDateString("en-IN");
+
+                    const bio = module.exports.autobioTemplate
+                        .replace("{time}", time)
+                        .replace("{date}", date);
+
+                    await sock.updateProfileStatus(bio);
+                    console.log(`✅ AutoBio updated: ${bio}`);
+                } catch (err) {
+                    console.error("❌ Error updating bio:", err.message);
+                }
+            };
+
+            await updateBio(); // Update instantly
+            module.exports.autobioInterval = setInterval(updateBio, 1000 * 60 * 2); // Every 2 min
+
+            await sock.sendMessage(jid, { text: "✅ AutoBio started!" }, { quoted: m });
         }
 
-        return sock.sendMessage(jid, { text: "⚠️ Invalid option. Use .autobio on/off/time/quotes/custom" }, { quoted: m });
+        // Turn OFF AutoBio
+        else if (option === "off") {
+            if (module.exports.autobioInterval) {
+                clearInterval(module.exports.autobioInterval);
+                module.exports.autobioInterval = null;
+                await sock.sendMessage(jid, { text: "🛑 AutoBio stopped." }, { quoted: m });
+            } else {
+                await sock.sendMessage(jid, { text: "⚠️ AutoBio is not running." }, { quoted: m });
+            }
+        }
+
+        // Set new template
+        else if (option === "set") {
+            const newTemplate = args.slice(1).join(" ");
+            if (!newTemplate) {
+                await sock.sendMessage(jid, { text: "⚠️ Usage: .autobio set Your custom text (use {time} {date})" }, { quoted: m });
+                return;
+            }
+
+            module.exports.autobioTemplate = newTemplate;
+            await sock.sendMessage(jid, { 
+                text: `✅ AutoBio template updated!\nNow using:\n${newTemplate}` 
+            }, { quoted: m });
+        }
+
+        else {
+            await sock.sendMessage(jid, { text: "⚠️ Invalid option! Use .autobio on/off/set" }, { quoted: m });
+        }
     }
 };
-
-function startAutoBio(sock, mode, customText = "") {
-    clearInterval(autobioInterval);
-
-    autobioInterval = setInterval(async () => {
-        try {
-            let newBio = "";
-
-            if (mode === "time") {
-                let time = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
-                let date = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-                newBio = `⚡ Active | ⏰ ${time} | 📅 ${date}`;
-            }
-
-            if (mode === "quotes") {
-                const quotes = [
-                    "⚡ Powered by WhatsApp Bot",
-                    "🔥 Stay strong, the best is yet to come!",
-                    "💡 Code. Sleep. Repeat.",
-                    "✨ Dream big, work hard.",
-                    "📱 WhatsApp Automation FTW!",
-                    "🚀 Built with Baileys."
-                ];
-                newBio = quotes[Math.floor(Math.random() * quotes.length)];
-            }
-
-            if (mode === "custom") {
-                newBio = customText;
-            }
-
-            if (newBio) {
-                // ✅ Try new method (Baileys 6.x+)
-                try {
-                    await sock.query({
-                        tag: "iq",
-                        attrs: {
-                            to: "@s.whatsapp.net",
-                            type: "set",
-                            xmlns: "status"
-                        },
-                        content: [
-                            {
-                                tag: "status",
-                                attrs: {},
-                                content: Buffer.from(newBio, "utf-8")
-                            }
-                        ]
-                    });
-                } catch (e) {
-                    // ✅ Fallback to old method (Baileys < 6)
-                    try {
-                        await sock.updateProfileStatus(newBio);
-                    } catch (err) {
-                        console.error("❌ Both methods failed:", err);
-                    }
-                }
-
-                console.log("✅ Bio updated to:", newBio);
-            }
-        } catch (err) {
-            console.error("❌ Error updating bio:", err);
-        }
-    }, 1000 * 60 * 2); // updates every 2 min
-}
