@@ -3,13 +3,12 @@
   "version": "1.0.0",
   "description": "A simple WhatsApp Userbot using Baileys",
   "main": "index.js",
-  "type": "commonjs",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
   },
   "dependencies": {
-    "@bochilteam/scraper": "^4.0.0",
+    "@bochilteam/scraper": "^3.0.0",
     "axios": "^1.7.2",
     "cheerio": "^1.0.0-rc.12",
     "express": "^4.18.2",
