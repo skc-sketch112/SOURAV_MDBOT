@@ -3,52 +3,89 @@ const axios = require("axios");
 module.exports = {
     name: "pin",
     command: ["pin", "pin1", "pin2", "pin3", "pin4", "pin5"],
-    description: "Fetch Pinterest images by search query",
+    description: "Fetch Pinterest images by search query (with Unsplash fallback)",
 
-    async execute(sock, m, args, command) {
+    async execute(sock, m, args) {
         let query = args.join(" ");
         if (!query) {
             return await sock.sendMessage(
                 m.key.remoteJid,
-                { text: "⚠️ Provide a keyword!\n\nExample: `.pin cat` or `.pin2 anime`" },
+                { text: "⚠️ Provide a keyword!\n\nExample: `.pin cat` or `.pin3 anime`" },
                 { quoted: m }
             );
         }
 
-        // Number of images from command (default = 1)
+        // Detect actual command (pin, pin2, pin3…)
+        let body = m.message?.conversation || m.message?.extendedTextMessage?.text || "";
+        let cmdName = body.split(" ")[0].replace(".", ""); // remove prefix "."
+
+        // Default = 1 image
         let num = 1;
-        if (command.startsWith("pin") && command.length > 3) {
-            let n = parseInt(command.slice(3));
-            if (!isNaN(n) && n > 0 && n <= 10) num = n; // Limit to 10
+        if (cmdName.length > 3) {
+            let n = parseInt(cmdName.slice(3));
+            if (!isNaN(n) && n > 0 && n <= 10) num = n; // max 10
         }
 
         let jid = m.key.remoteJid;
         let urls = [];
 
+        // 🔹 Try Pinterest first
         try {
-            // Pinterest scraping
             const res = await axios.get(
-                `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`
+                `https://www.pinterest.com/resource/BaseSearchResource/get/`,
+                {
+                    params: {
+                        source_url: `/search/pins/?q=${encodeURIComponent(query)}`,
+                        data: JSON.stringify({
+                            options: {
+                                query,
+                                page_size: 20,
+                                redux_normalize_feed: true
+                            },
+                            context: {}
+                        }),
+                    },
+                }
             );
 
-            const regex = /"url":"(https:\/\/i\.pinimg\.com[^"]+)"/g;
-            let match;
-            while ((match = regex.exec(res.data)) !== null) {
-                urls.push(match[1].replace(/\\u0026/g, "&"));
+            if (res.data?.resource_response?.data?.results) {
+                res.data.resource_response.data.results.forEach(item => {
+                    if (item.images?.orig?.url) {
+                        urls.push(item.images.orig.url);
+                    }
+                });
             }
         } catch (err) {
             console.error("Pinterest fetch failed:", err.message);
         }
 
+        // 🔹 Fallback: Unsplash if no good Pinterest result
+        try {
+            if (urls.length < num) {
+                const res2 = await axios.get(`https://api.unsplash.com/search/photos`, {
+                    params: { query, per_page: 10 },
+                    headers: {
+                        Authorization: "Client-ID YOUR_UNSPLASH_ACCESS_KEY"
+                    },
+                });
+
+                res2.data.results.forEach(img => {
+                    if (img.urls?.regular) urls.push(img.urls.regular);
+                });
+            }
+        } catch (err) {
+            console.error("Unsplash fetch failed:", err.message);
+        }
+
         if (urls.length === 0) {
             return await sock.sendMessage(
                 jid,
-                { text: `❌ No Pinterest images found for *${query}*.` },
+                { text: `❌ No images found for *${query}*.` },
                 { quoted: m }
             );
         }
 
-        // Shuffle for randomness but still search-based
+        // Shuffle results to avoid repetition
         urls = urls.sort(() => 0.5 - Math.random());
 
         // Send requested number of images
