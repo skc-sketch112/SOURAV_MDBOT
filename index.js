@@ -24,35 +24,51 @@ setInterval(() => {
 
 // ================== LOAD PLUGINS ==================
 const commands = new Map();
+const PLUGIN_DIR = path.join(__dirname, "plugins");
+
+function loadPlugin(file) {
+    try {
+        delete require.cache[require.resolve(path.join(PLUGIN_DIR, file))]; // hot reload
+        const plugin = require(path.join(PLUGIN_DIR, file));
+
+        let pluginName = plugin.name || file.replace(".js", "");
+        let aliases = [];
+
+        if (plugin.command && Array.isArray(plugin.command)) {
+            aliases = plugin.command.map(c => c.toLowerCase());
+        } else if (plugin.command && typeof plugin.command === "string") {
+            aliases = [plugin.command.toLowerCase()];
+        } else {
+            aliases = [pluginName.toLowerCase()]; // fallback
+        }
+
+        aliases.forEach(alias => {
+            commands.set(alias, plugin);
+        });
+
+        console.log(`✅ Loaded plugin: ${pluginName} [${aliases.join(", ")}]`);
+    } catch (err) {
+        console.error(`❌ Failed to load plugin ${file}:`, err.message);
+    }
+}
 
 function loadPlugins() {
-    fs.readdirSync(path.join(__dirname, "plugins")).forEach(file => {
+    commands.clear();
+    fs.readdirSync(PLUGIN_DIR).forEach(file => {
         if (file.endsWith(".js")) {
-            try {
-                const plugin = require(`./plugins/${file}`);
-
-                let pluginName = plugin.name || file.replace(".js", "");
-                let aliases = [];
-
-                if (plugin.command && Array.isArray(plugin.command)) {
-                    aliases = plugin.command.map(c => c.toLowerCase());
-                } else if (plugin.command && typeof plugin.command === "string") {
-                    aliases = [plugin.command.toLowerCase()];
-                } else {
-                    aliases = [pluginName.toLowerCase()]; // fallback
-                }
-
-                aliases.forEach(alias => {
-                    commands.set(alias, plugin);
-                });
-
-                console.log(`✅ Loaded plugin: ${pluginName} [${aliases.join(", ")}]`);
-            } catch (err) {
-                console.error(`❌ Failed to load plugin ${file}:`, err);
-            }
+            loadPlugin(file);
         }
     });
 }
+
+// Watch plugin folder for changes
+fs.watch(PLUGIN_DIR, (eventType, filename) => {
+    if (filename && filename.endsWith(".js")) {
+        console.log(`♻️ Plugin change detected: ${filename}, reloading...`);
+        loadPlugins();
+    }
+});
+
 loadPlugins();
 
 // ================== ANTI-BAN SYSTEM ==================
@@ -102,7 +118,7 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds);
 
-    // Message handler
+    // ================== MESSAGE HANDLER ==================
     sock.ev.on("messages.upsert", async ({ messages }) => {
         const m = messages[0];
         if (!m.message) return;
