@@ -41,7 +41,7 @@ module.exports = {
                     {
                         params: { query, per_page: 10 },
                         headers: {
-                            Authorization: "Uebb0QGhkVela_0V0ZidmqYXDqAEHRYpV2UnemVHgLY" 
+                            Authorization: "Client-ID 0QGhkVela_0V0ZidmqYXDqAEHRYpV2UnemVHgLY" 
                             // ⚠️ Replace with your Unsplash Access Key
                         },
                     }
