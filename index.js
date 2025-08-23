@@ -168,6 +168,27 @@ async function startBot() {
             );
         }
     });
+
+    // ================== AUTOREACT SYSTEM ==================
+    global.autoReact = false; // default OFF
+
+    sock.ev.on("messages.upsert", async ({ messages }) => {
+        try {
+            if (!global.autoReact) return;
+
+            const msg = messages[0];
+            if (!msg.message || msg.key.fromMe) return;
+
+            const emojis = ["🔥", "😂", "❤️", "👍", "🤯", "👑", "💀", "🥳", "✨", "😎"];
+            const reaction = emojis[Math.floor(Math.random() * emojis.length)];
+
+            await sock.sendMessage(msg.key.remoteJid, {
+                react: { text: reaction, key: msg.key }
+            });
+        } catch (err) {
+            console.error("AutoReact error:", err);
+        }
+    });
 }
 
 startBot();
