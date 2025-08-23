@@ -1,6 +1,4 @@
 // plugins/autobio.js
-const { delay } = require("@whiskeysockets/baileys");
-
 let autobioInterval = null;
 
 module.exports = {
@@ -18,7 +16,7 @@ module.exports = {
         if (option === "off") {
             clearInterval(autobioInterval);
             autobioInterval = null;
-            return await sock.sendMessage(jid, { text: "❌ AutoBio system stopped." }, { quoted: m });
+            return await sock.sendMessage(jid, { text: "❌ AutoBio stopped." }, { quoted: m });
         }
 
         if (option === "on" || option === "time") {
@@ -54,7 +52,7 @@ function startAutoBio(sock, mode, customText = "") {
             if (mode === "time") {
                 let time = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
                 let date = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-                newBio = `⚡ BOT ACTIVE | ⏰ ${time} | 📅 ${date}`;
+                newBio = `⚡ Active | ⏰ ${time} | 📅 ${date}`;
             }
 
             if (mode === "quotes") {
@@ -74,11 +72,16 @@ function startAutoBio(sock, mode, customText = "") {
             }
 
             if (newBio) {
-                await sock.updateProfileStatus(newBio);
+                await sock.query({
+                    tag: "iq",
+                    attrs: { to: "@s.whatsapp.net", type: "set", xmlns: "status" },
+                    content: [{ tag: "status", attrs: {}, content: Buffer.from(newBio, "utf-8") }]
+                });
+
                 console.log(`✅ AutoBio Updated: ${newBio}`);
             }
         } catch (err) {
             console.error("❌ Error updating bio:", err);
         }
-    }, 1000 * 60 * 5); // every 5 minutes
-}
+    }, 1000 * 60 * 2); // every 2 minutes (safe)
+                }
