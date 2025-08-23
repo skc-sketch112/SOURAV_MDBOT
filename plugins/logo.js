@@ -17,31 +17,34 @@ module.exports = {
 
         const jid = m.key.remoteJid;
 
-        // --- List of Logo APIs (fallbacks) ---
+        // --- Multiple APIs ---
         const apis = [
-            // Free TextPro API (unofficial, stable)
-            `https://textpro-api-new.vercel.app/api/logo?style=neon&text=${encodeURIComponent(text)}`,
+            // TextPro API (different host, more stable)
+            `https://api.textpro.me/logo/neon?text=${encodeURIComponent(text)}`,
 
-            // Alternative (flaming text style)
-            `https://textpro-api-new.vercel.app/api/logo?style=flaming&text=${encodeURIComponent(text)}`,
+            // Photooxy API (stylish fire effect)
+            `https://api.photooxy.me/logo/fiery?text=${encodeURIComponent(text)}`,
 
-            // Unsplash fallback (stylized background text)
-            `https://source.unsplash.com/800x400/?neon,${encodeURIComponent(text)}`
+            // Unsplash fallback with styled bg
+            `https://dummyimage.com/800x400/000/fff&text=${encodeURIComponent(text)}`
         ];
 
         let success = false;
         for (let url of apis) {
             try {
+                // Try to fetch image
+                const response = await axios.get(url, { responseType: "arraybuffer" });
+
                 await sock.sendMessage(
                     jid,
                     {
-                        image: { url },
+                        image: { url }, // if direct URL
                         caption: `✨ Logo for: *${text}*`
                     },
                     { quoted: m }
                 );
                 success = true;
-                break; // ✅ stop at first working API
+                break; // ✅ stop if success
             } catch (err) {
                 console.error(`Logo fetch failed for ${url}:`, err.message);
             }
