@@ -2,8 +2,8 @@ const axios = require("axios");
 
 module.exports = {
     name: "pinterest",
-    command: ["pinterest", "pin", "pint"],
-    description: "Fetch Pinterest images using API",
+    command: ["pinterest", "pin"],
+    description: "Fetch Pinterest images by scraping",
 
     async execute(sock, m, args) {
         try {
@@ -22,11 +22,24 @@ module.exports = {
                 { quoted: m }
             );
 
-            // ✅ Using public API instead of scraping
-            const api = `https://pinterest-api-nine.vercel.app/?q=${encodeURIComponent(query)}`;
-            const res = await axios.get(api);
+            // ✅ Scrape Pinterest search page
+            const url = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`;
+            const { data } = await axios.get(url, {
+                headers: {
+                    "User-Agent": "Mozilla/5.0"
+                }
+            });
 
-            if (!res.data || res.data.length === 0) {
+            // Extract image links from page
+            const regex = /"url":"(https:\/\/i\.pinimg\.com\/[^"]+)"/g;
+            let results = [];
+            let match;
+
+            while ((match = regex.exec(data)) !== null) {
+                results.push(match[1].replace(/\\u0026/g, "&"));
+            }
+
+            if (results.length === 0) {
                 return await sock.sendMessage(
                     m.key.remoteJid,
                     { text: "⚠️ No images found. Try another search." },
@@ -34,23 +47,23 @@ module.exports = {
                 );
             }
 
-            // 🎲 Pick random image
-            const image = res.data[Math.floor(Math.random() * res.data.length)];
+            // 🎲 Pick a random image
+            const image = results[Math.floor(Math.random() * results.length)];
 
             await sock.sendMessage(
                 m.key.remoteJid,
                 {
                     image: { url: image },
-                    caption: `✨ Pinterest Result for: *${query}*`
+                    caption: `✨ Pinterest result for: *${query}*`
                 },
                 { quoted: m }
             );
 
         } catch (err) {
-            console.error("❌ Pinterest API error:", err.message);
+            console.error("Pinterest Error:", err.message);
             await sock.sendMessage(
                 m.key.remoteJid,
-                { text: "⚠️ Error fetching Pinterest images. API might be down." },
+                { text: "⚠️ Error fetching Pinterest images. Try again later." },
                 { quoted: m }
             );
         }
