@@ -39,7 +39,7 @@ function loadPlugin(file) {
         } else if (plugin.command && typeof plugin.command === "string") {
             aliases = [plugin.command.toLowerCase()];
         } else {
-            aliases = [pluginName.toLowerCase()]; // fallback
+            aliases = [pluginName.toLowerCase()];
         }
 
         aliases.forEach(alias => {
@@ -80,7 +80,7 @@ async function applyAntiBan(sock, m) {
     const jid = m.key.remoteJid;
     try {
         await sock.sendPresenceUpdate("composing", jid);
-        await new Promise(r => setTimeout(r, 500 + Math.random() * 1500));
+        await new Promise(r => setTimeout(r, 300 + Math.random() * 700));
     } catch { }
 }
 
@@ -92,6 +92,8 @@ async function startBot() {
         logger: pino({ level: "silent" }),
         printQRInTerminal: false,
         auth: state,
+        connectTimeoutMs: 60_000, // longer timeout for API calls
+        defaultQueryTimeoutMs: 0 // never auto-timeout API
     });
 
     // QR Code Link in Console
@@ -126,6 +128,8 @@ async function startBot() {
         let body =
             m.message.conversation ||
             m.message.extendedTextMessage?.text ||
+            m.message.imageMessage?.caption ||
+            m.message.videoMessage?.caption ||
             "";
 
         // ✅ Auto-run "onMessage" plugins even if no prefix
@@ -156,7 +160,7 @@ async function startBot() {
                 console.error(`❌ Error in command ${cmd}:`, err);
                 await sock.sendMessage(
                     m.key.remoteJid,
-                    { text: `⚠️ Error while executing: ${cmd}` },
+                    { text: `⚠️ Error while executing: ${cmd}\n\n${err.message}` },
                     { quoted: m }
                 );
             }
