@@ -9,6 +9,7 @@
     "dev": "nodemon index.js"
   },
   "dependencies": {
+    "@bochilteam/scraper": "^4.0.0",
     "axios": "^1.7.2",
     "cheerio": "^1.0.0-rc.12",
     "express": "^4.18.2",
