@@ -2,42 +2,39 @@ const axios = require("axios");
 
 module.exports = {
     name: "pinterest",
-    command: ["pinterest", "pin", "pint"],
-    description: "Search images (Pinterest style)",
-
-    async execute(sock, m, args) {
-        let query = args.join(" ");
-        if (!query) {
-            return sock.sendMessage(m.key.remoteJid, { text: "❌ Please provide a search term!\n\nExample: .pinterest anime girl" }, { quoted: m });
+    command: ["pin", "pinterest"],
+    desc: "Search images from Pinterest (via Google Images)",
+    use: "<search term>",
+    execute: async (sock, m, args) => {
+        if (!args.length) {
+            return sock.sendMessage(m.key.remoteJid, { text: "❌ Usage: .pinterest <search term>\nExample: .pinterest cat" }, { quoted: m });
         }
 
-        try {
-            // DuckDuckGo image search API
-            let { data } = await axios.get(
-                `https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(query)}`
-            );
+        const query = args.join(" ");
+        const apiKey = process.env.SERPAPI_KEY || "YOUR_SERPAPI_KEY"; // put in .env or replace
 
-            if (!data.results || !data.results.length) {
-                return sock.sendMessage(m.key.remoteJid, { text: "⚠️ No images found!" }, { quoted: m });
+        await sock.sendMessage(m.key.remoteJid, { text: `🔍 Searching Pinterest for *${query}* ...` }, { quoted: m });
+
+        try {
+            const url = `https://serpapi.com/search.json?q=${encodeURIComponent(query)}+site:pinterest.com&tbm=isch&api_key=${apiKey}`;
+            const res = await axios.get(url, { timeout: 15000 });
+
+            if (!res.data.images_results || res.data.images_results.length === 0) {
+                return sock.sendMessage(m.key.remoteJid, { text: "⚠️ No images found. Try another search." }, { quoted: m });
             }
 
-            // Pick random image
-            let result = data.results[Math.floor(Math.random() * data.results.length)];
-            let image = result.image;
+            const images = res.data.images_results.map(img => img.original);
+            const randomImg = images[Math.floor(Math.random() * images.length)];
 
             await sock.sendMessage(
                 m.key.remoteJid,
-                { image: { url: image }, caption: `🔍 Image result for: *${query}*` },
+                { image: { url: randomImg }, caption: `✅ Pinterest result for: *${query}*` },
                 { quoted: m }
             );
 
         } catch (err) {
-            console.error("❌ Image Fetch Error:", err.message);
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: "⚠️ Failed to fetch images, please try again later." },
-                { quoted: m }
-            );
+            console.error("❌ Pinterest command error:", err.message);
+            await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Error fetching images. Please try again." }, { quoted: m });
         }
     }
 };
