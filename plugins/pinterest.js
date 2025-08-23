@@ -1,48 +1,43 @@
 const axios = require("axios");
-const cheerio = require("cheerio");
 
 module.exports = {
-  name: "pinterest",
-  alias: ["pin"],
-  desc: "Search images from Pinterest",
-  use: "<search term>",
-  category: "search",
-  
-  async run({ msg, args }) {
-    if (!args.length) {
-      return msg.reply("❌ Usage: .pinterest <search term>\nExample: .pinterest cat");
+    name: "pinterest",
+    command: ["pinterest", "pin", "pint"],
+    description: "Search images (Pinterest style)",
+
+    async execute(sock, m, args) {
+        let query = args.join(" ");
+        if (!query) {
+            return sock.sendMessage(m.key.remoteJid, { text: "❌ Please provide a search term!\n\nExample: .pinterest anime girl" }, { quoted: m });
+        }
+
+        try {
+            // DuckDuckGo image search API
+            let { data } = await axios.get(
+                `https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(query)}`
+            );
+
+            if (!data.results || !data.results.length) {
+                return sock.sendMessage(m.key.remoteJid, { text: "⚠️ No images found!" }, { quoted: m });
+            }
+
+            // Pick random image
+            let result = data.results[Math.floor(Math.random() * data.results.length)];
+            let image = result.image;
+
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { image: { url: image }, caption: `🔍 Image result for: *${query}*` },
+                { quoted: m }
+            );
+
+        } catch (err) {
+            console.error("❌ Image Fetch Error:", err.message);
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { text: "⚠️ Failed to fetch images, please try again later." },
+                { quoted: m }
+            );
+        }
     }
-
-    const query = args.join(" ");
-    await msg.reply(`🔍 Searching Pinterest for *${query}* ...`);
-
-    try {
-      const res = await axios.get(
-        `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`
-      );
-
-      const $ = cheerio.load(res.data);
-      let images = [];
-
-      $("img").each((i, el) => {
-        const src = $(el).attr("src");
-        if (src && src.startsWith("http")) images.push(src);
-      });
-
-      if (images.length === 0) {
-        return msg.reply("⚠️ No images found on Pinterest. Try another search.");
-      }
-
-      const randomImg = images[Math.floor(Math.random() * images.length)];
-
-      await msg.bot.sendMessage(
-        msg.from,
-        { image: { url: randomImg }, caption: `✅ Pinterest result for: *${query}*` },
-        { quoted: msg }
-      );
-    } catch (err) {
-      console.error("Pinterest Error:", err.message);
-      await msg.reply("❌ Failed to fetch Pinterest images. Please try again later.");
-    }
-  }
 };
