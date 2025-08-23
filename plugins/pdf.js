@@ -1,77 +1,139 @@
 const fs = require("fs");
+const axios = require("axios");
 const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
 
 module.exports = {
   name: "pdf",
-  command: ["pdf", "makepdf", "textpdf"],
-  description: "Convert any text into a PDF file",
+  command: ["pdf", "pdfimg", "makepdf", "textpdf", "imgpdf"],
+  description: "Convert text or images (single/multiple) into a PDF",
 
-  async execute(sock, m, args) {
+  async execute(sock, m, args, command) {
     try {
       const sender = m.key.remoteJid;
-      if (!args || args.length === 0) {
-        return sock.sendMessage(sender, {
-          text: "📕 Usage: *.pdf <your text>*\nExample: *.pdf Hello this is my first custom PDF!*"
-        });
-      }
 
-      const content = args.join(" ");
-
-      // Create new PDF
-      const pdfDoc = await PDFDocument.create();
-      const page = pdfDoc.addPage([595, 842]); // A4
-      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      const { height } = page.getSize();
-
-      const fontSize = 12;
-      const margin = 50;
-      let y = height - margin;
-
-      // Split text into lines (so even huge texts fit page)
-      const words = content.split(" ");
-      let line = "";
-
-      for (let i = 0; i < words.length; i++) {
-        const testLine = line + words[i] + " ";
-        const width = font.widthOfTextAtSize(testLine, fontSize);
-
-        if (width > page.getWidth() - 2 * margin) {
-          page.drawText(line, { x: margin, y, size: fontSize, font, color: rgb(0, 0, 0) });
-          line = words[i] + " ";
-          y -= fontSize + 5;
-
-          // New page if text exceeds
-          if (y < margin) {
-            y = height - margin;
-            const newPage = pdfDoc.addPage([595, 842]);
-            page = newPage;
-          }
-        } else {
-          line = testLine;
+      // --- TEXT TO PDF ---
+      if (command === "pdf" || command === "makepdf" || command === "textpdf") {
+        if (!args || args.length === 0) {
+          return sock.sendMessage(sender, {
+            text: "📕 Usage: *.pdf <your text>*\nExample: *.pdf Hello world in PDF!*"
+          });
         }
+
+        const content = args.join(" ");
+        const pdfDoc = await PDFDocument.create();
+        let page = pdfDoc.addPage([595, 842]); // A4
+        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+        const { height } = page.getSize();
+
+        const fontSize = 12;
+        const margin = 50;
+        let y = height - margin;
+
+        const words = content.split(" ");
+        let line = "";
+
+        for (let i = 0; i < words.length; i++) {
+          const testLine = line + words[i] + " ";
+          const width = font.widthOfTextAtSize(testLine, fontSize);
+
+          if (width > page.getWidth() - 2 * margin) {
+            page.drawText(line, { x: margin, y, size: fontSize, font, color: rgb(0, 0, 0) });
+            line = words[i] + " ";
+            y -= fontSize + 5;
+
+            if (y < margin) {
+              y = height - margin;
+              page = pdfDoc.addPage([595, 842]);
+            }
+          } else {
+            line = testLine;
+          }
+        }
+
+        if (line.length > 0) {
+          page.drawText(line, { x: margin, y, size: fontSize, font, color: rgb(0, 0, 0) });
+        }
+
+        const pdfBytes = await pdfDoc.save();
+        const filePath = "./output_text.pdf";
+        fs.writeFileSync(filePath, pdfBytes);
+
+        await sock.sendMessage(sender, {
+          document: { url: filePath },
+          mimetype: "application/pdf",
+          fileName: "text_generated.pdf",
+          caption: "✅ Text converted into PDF!"
+        });
+
+        fs.unlinkSync(filePath);
       }
 
-      if (line.length > 0) {
-        page.drawText(line, { x: margin, y, size: fontSize, font, color: rgb(0, 0, 0) });
+      // --- IMAGES TO PDF (MULTIPLE) ---
+      else if (command === "pdfimg" || command === "imgpdf") {
+        let imageBuffers = [];
+
+        // Case 1: User sends multiple URLs
+        if (args && args.length > 0) {
+          for (let url of args) {
+            try {
+              const res = await axios.get(url, { responseType: "arraybuffer" });
+              imageBuffers.push(res.data);
+            } catch (err) {
+              console.log("❌ Failed to fetch image:", url);
+            }
+          }
+        }
+
+        // Case 2: User uploads one/multiple images
+        if (m.message?.imageMessage) {
+          const imgBuffer = await sock.downloadMediaMessage(m);
+          imageBuffers.push(imgBuffer);
+        }
+        if (m.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage) {
+          const imgBuffer = await sock.downloadMediaMessage({
+            message: m.message.extendedTextMessage.contextInfo.quotedMessage,
+          });
+          imageBuffers.push(imgBuffer);
+        }
+
+        if (imageBuffers.length === 0) {
+          return sock.sendMessage(sender, {
+            text: "🖼️ Usage: *.pdfimg <image urls>* OR send/reply multiple images with caption *.pdfimg*"
+          });
+        }
+
+        const pdfDoc = await PDFDocument.create();
+
+        for (const buffer of imageBuffers) {
+          let image;
+          try {
+            image = await pdfDoc.embedJpg(buffer);
+          } catch {
+            image = await pdfDoc.embedPng(buffer);
+          }
+
+          const page = pdfDoc.addPage([image.width, image.height]);
+          page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+        }
+
+        const pdfBytes = await pdfDoc.save();
+        const filePath = "./output_images.pdf";
+        fs.writeFileSync(filePath, pdfBytes);
+
+        await sock.sendMessage(sender, {
+          document: { url: filePath },
+          mimetype: "application/pdf",
+          fileName: "images_generated.pdf",
+          caption: "✅ All images combined into ONE PDF!"
+        });
+
+        fs.unlinkSync(filePath);
       }
-
-      const pdfBytes = await pdfDoc.save();
-      const filePath = "./output.pdf";
-      fs.writeFileSync(filePath, pdfBytes);
-
-      await sock.sendMessage(sender, {
-        document: { url: filePath },
-        mimetype: "application/pdf",
-        fileName: "generated.pdf",
-        caption: "✅ Your text has been converted into PDF successfully!"
-      });
-
-      fs.unlinkSync(filePath); // cleanup
 
     } catch (err) {
-      console.error("❌ PDF generation error:", err.message);
+      console.error("❌ PDF generation error:", err);
       return sock.sendMessage(m.key.remoteJid, {
-        text: "⚠️ Error generating PDF. Try again!"
+        text: "⚠️ Error generating PDF. Please try again."
       });
     }
   }
