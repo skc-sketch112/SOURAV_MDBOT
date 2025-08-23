@@ -2,76 +2,100 @@ const axios = require("axios");
 
 module.exports = {
   name: "cpp",
-  command: ["cpp", "couple"],
-  description: "Unlimited Couple Images with error-free fallback system",
+  command: ["cpp"],
+  description: "Pro Edition - Anime Couple/Emotions (Unlimited with Fallback)",
 
   async execute(sock, m, args) {
     const sender = m.key.remoteJid;
-    const query = args.join(" ") || "couple";
 
-    // Helper: safe fetch
-    async function safeFetch(url, key) {
-      try {
-        const res = await axios.get(url, { timeout: 15000 });
-        if (key) return res.data[key] || null;
-        return res.data;
-      } catch {
-        return null;
-      }
-    }
-
-    // Helper: send
-    async function sendImage(url, cap) {
-      try {
-        await sock.sendMessage(sender, { image: { url }, caption: cap });
-      } catch {
-        await sock.sendMessage(sender, { text: "❌ Failed to send image." });
-      }
-    }
-
-    // === Multiple Sources for Couple Pics ===
-    const sources = [
-      async (q) => {
-        const res = await safeFetch(`https://lexica.art/api/v1/search?q=${encodeURIComponent(q)}`);
-        if (res?.images?.length) {
-          return res.images[Math.floor(Math.random() * res.images.length)].src;
-        }
-        return null;
-      },
-      async (q) => `https://source.unsplash.com/600x600/?${encodeURIComponent(q)},couple,love`,
-      async () => {
-        const res = await safeFetch(`https://api.waifu.pics/sfw/waifu`);
-        return res?.url || null;
-      },
-      async (q) => {
-        return `https://image.pollinations.ai/prompt/${encodeURIComponent("romantic couple " + q)}`;
-      },
-      async (q) => {
-        const res = await safeFetch(`https://nekos.best/api/v2/neko`);
-        return res?.results?.[0]?.url || null;
-      },
-      async (q) => {
-        const res = await safeFetch(`https://api.waifu.im/search/?included_tags=waifu`);
-        return res?.images?.[0]?.url || null;
-      },
-      async () => "https://i.ibb.co/3m9tWkd/fallback.png" // LAST fallback
+    // Categories
+    const categories = [
+      "hug", "kiss", "pat", "cuddle", "handhold", 
+      "smile", "blush", "cry", "dance", "love"
     ];
 
-    let img = null;
-
-    // Try each source until success
-    for (let src of sources) {
-      try {
-        img = await src(query);
-        if (img) break;
-      } catch {}
+    // Show list
+    if (!args[0] || args[0].toLowerCase() === "list") {
+      let menu = "💖 *Couple / Emotions Pro Edition*\n\n";
+      menu += "📌 Usage: `.cpp <category>`\n\n";
+      menu += "✨ *Categories:*\n" + categories.join(", ") + "\n\n";
+      menu += "🔗 Example:\n.cpp hug\n";
+      return sock.sendMessage(sender, { text: menu });
     }
 
-    if (!img) {
-      return sock.sendMessage(sender, { text: "⚠️ All APIs failed. Please try again later." });
+    const choice = args[0].toLowerCase();
+    if (!categories.includes(choice)) {
+      return sock.sendMessage(sender, { text: `❌ Invalid category.\nType: .cpp list` });
     }
 
-    // === Final Send ===
-    return sendImage(img, `💞 *Couple Image* 💞\n🔍 Query: ${query}`);
+    // Fallback APIs for each category
+    const apiPool = {
+      hug: [
+        `https://nekos.best/api/v2/hug`,
+        `https://api.waifu.pics/sfw/hug`
+      ],
+      kiss: [
+        `https://nekos.best/api/v2/kiss`,
+        `https://api.waifu.pics/sfw/kiss`
+      ],
+      pat: [
+        `https://nekos.best/api/v2/pat`,
+        `https://api.waifu.pics/sfw/pat`
+      ],
+      cuddle: [
+        `https://nekos.best/api/v2/cuddle`,
+        `https://api.waifu.pics/sfw/cuddle`
+      ],
+      handhold: [
+        `https://api.waifu.pics/sfw/handhold`
+      ],
+      smile: [
+        `https://nekos.best/api/v2/smile`
+      ],
+      blush: [
+        `https://nekos.best/api/v2/blush`
+      ],
+      cry: [
+        `https://nekos.best/api/v2/cry`
+      ],
+      dance: [
+        `https://nekos.best/api/v2/dance`
+      ],
+      love: [
+        `https://nekos.best/api/v2/kiss`,
+        `https://api.waifu.pics/sfw/kiss`
+      ]
+    };
+
+    // Function to fetch image with fallback
+    async function fetchImage(apiList) {
+      for (let url of apiList) {
+        try {
+          const res = await axios.get(url);
+          // Handle different API response formats
+          if (res.data?.results?.[0]?.url) {
+            return res.data.results[0].url;
+          } else if (res.data?.url) {
+            return res.data.url;
+          }
+        } catch (err) {
+          console.error("API failed:", url, err.message);
+          continue;
+        }
+      }
+      return null;
+    }
+
+    // Get image
+    const imgUrl = await fetchImage(apiPool[choice]);
+    if (!imgUrl) {
+      return sock.sendMessage(sender, { text: "⚠️ All sources failed. Try again later." });
+    }
+
+    // Send image
+    await sock.sendMessage(sender, {
+      image: { url: imgUrl },
+      caption: `💞 *${choice.toUpperCase()}*`
+    }, { quoted: m });
   }
 };
