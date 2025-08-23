@@ -1,8 +1,7 @@
 const axios = require("axios");
 
 module.exports = {
-  name: "pinterest",
-  alias: ["pin"],
+  cmd: ["pinterest", "pin"],
   category: "search",
   desc: "Search images from Pinterest",
   use: "<search term>",
@@ -17,7 +16,7 @@ module.exports = {
     // Multiple APIs (backup system)
     const apis = [
       `https://api.akuari.my.id/search/pinterest?query=${encodeURIComponent(query)}`,
-      `https://bx-hunter.herokuapp.com/api/pinterest?text=${encodeURIComponent(query)}&apikey=Ikyy69`, 
+      `https://bx-hunter.herokuapp.com/api/pinterest?text=${encodeURIComponent(query)}&apikey=Ikyy69`,
       `https://vihangayt.me/search/pinterest?q=${encodeURIComponent(query)}`
     ];
 
@@ -31,7 +30,7 @@ module.exports = {
           else if (res.data.data) images = res.data.data;
           else if (res.data.image) images = res.data.image;
         }
-        if (images && images.length > 0) break; // ✅ got results, stop loop
+        if (images && images.length > 0) break;
       } catch (e) {
         console.log(`⚠️ API failed: ${api}`);
       }
