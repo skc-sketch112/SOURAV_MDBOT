@@ -1,59 +1,52 @@
 const axios = require("axios");
 
 module.exports = {
-    name: "pinterest",
-    command: ["pinterest", "pin"],
-    description: "Fetch images from Pinterest",
-
-    async execute(sock, m, args) {
-        try {
-            if (!args || args.length === 0) {
-                return await sock.sendMessage(
-                    m.key.remoteJid,
-                    { text: "❌ Usage: .pinterest <search term>\nExample: .pinterest cat" },
-                    { quoted: m }
-                );
-            }
-
-            const query = args.join(" ");
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: `🔍 Searching Pinterest for *${query}* ...` },
-                { quoted: m }
-            );
-
-            // ✅ API endpoint
-            const res = await axios.get(
-                `https://shizoapi.vercel.app/api/pinterest?query=${encodeURIComponent(query)}`
-            );
-
-            if (!res.data || res.data.length === 0) {
-                return await sock.sendMessage(
-                    m.key.remoteJid,
-                    { text: "⚠️ No images found. Try another search." },
-                    { quoted: m }
-                );
-            }
-
-            // 🎲 Pick random image
-            const image = res.data[Math.floor(Math.random() * res.data.length)];
-
-            await sock.sendMessage(
-                m.key.remoteJid,
-                {
-                    image: { url: image },
-                    caption: `✨ Pinterest result for: *${query}*`
-                },
-                { quoted: m }
-            );
-
-        } catch (err) {
-            console.error("Pinterest Plugin Error:", err);
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: "⚠️ Error fetching Pinterest images. Try again later." },
-                { quoted: m }
-            );
-        }
+  name: "pinterest",
+  alias: ["pin"],
+  category: "search",
+  desc: "Search images from Pinterest",
+  use: "<search term>",
+  async run({ msg, args }) {
+    if (!args.length) {
+      return msg.reply("❌ Usage: .pinterest <search term>\nExample: .pinterest cat");
     }
+
+    const query = args.join(" ");
+    await msg.reply(`🔍 Searching Pinterest for *${query}* ...`);
+
+    // Multiple APIs (backup system)
+    const apis = [
+      `https://api.akuari.my.id/search/pinterest?query=${encodeURIComponent(query)}`,
+      `https://bx-hunter.herokuapp.com/api/pinterest?text=${encodeURIComponent(query)}&apikey=Ikyy69`, 
+      `https://vihangayt.me/search/pinterest?q=${encodeURIComponent(query)}`
+    ];
+
+    let images = [];
+
+    for (let api of apis) {
+      try {
+        const res = await axios.get(api, { timeout: 10000 });
+        if (res.data) {
+          if (res.data.result) images = res.data.result;
+          else if (res.data.data) images = res.data.data;
+          else if (res.data.image) images = res.data.image;
+        }
+        if (images && images.length > 0) break; // ✅ got results, stop loop
+      } catch (e) {
+        console.log(`⚠️ API failed: ${api}`);
+      }
+    }
+
+    if (!images || images.length === 0) {
+      return msg.reply("⚠️ No images found or all APIs down. Try again later.");
+    }
+
+    const randomImg = images[Math.floor(Math.random() * images.length)];
+
+    await msg.bot.sendMessage(
+      msg.from,
+      { image: { url: randomImg }, caption: `✅ Pinterest result for: *${query}*` },
+      { quoted: msg }
+    );
+  }
 };
