@@ -1,48 +1,65 @@
 const axios = require("axios");
 
-async function safeFetch(url) {
-  try {
-    const res = await axios.get(url, { timeout: 10000 });
-    return res.data;
-  } catch {
-    return null;
-  }
-}
-
 module.exports = {
   name: "cpp",
   command: ["cpp", "couple"],
-  description: "Unlimited Couple Images (Error-Free)",
+  description: "Unlimited Couple Images with error-free fallback system",
 
-  async execute(sock, m, args, command) {
+  async execute(sock, m, args) {
     const sender = m.key.remoteJid;
     const query = args.join(" ") || "couple";
 
-    const sendImage = async (url, caption) => {
-      await sock.sendMessage(sender, { image: { url }, caption });
-    };
+    // Helper: safe fetch
+    async function safeFetch(url, key) {
+      try {
+        const res = await axios.get(url, { timeout: 15000 });
+        if (key) return res.data[key] || null;
+        return res.data;
+      } catch {
+        return null;
+      }
+    }
 
-    // === Unlimited Sources ===
+    // Helper: send
+    async function sendImage(url, cap) {
+      try {
+        await sock.sendMessage(sender, { image: { url }, caption: cap });
+      } catch {
+        await sock.sendMessage(sender, { text: "❌ Failed to send image." });
+      }
+    }
+
+    // === Multiple Sources for Couple Pics ===
     const sources = [
       async (q) => {
-        let res = await safeFetch(`https://lexica.art/api/v1/search?q=${encodeURIComponent(q)}`);
+        const res = await safeFetch(`https://lexica.art/api/v1/search?q=${encodeURIComponent(q)}`);
         if (res?.images?.length) {
           return res.images[Math.floor(Math.random() * res.images.length)].src;
         }
         return null;
       },
-      async (q) => `https://source.unsplash.com/600x600/?${encodeURIComponent(q)},couple`,
+      async (q) => `https://source.unsplash.com/600x600/?${encodeURIComponent(q)},couple,love`,
       async () => {
-        let res = await safeFetch(`https://api.waifu.pics/sfw/waifu`);
+        const res = await safeFetch(`https://api.waifu.pics/sfw/waifu`);
         return res?.url || null;
       },
-      async (q) => `https://image.pollinations.ai/prompt/${encodeURIComponent(q + " couple")}`,
-      async () => "https://i.ibb.co/3m9tWkd/fallback.png" // Final fallback
+      async (q) => {
+        return `https://image.pollinations.ai/prompt/${encodeURIComponent("romantic couple " + q)}`;
+      },
+      async (q) => {
+        const res = await safeFetch(`https://nekos.best/api/v2/neko`);
+        return res?.results?.[0]?.url || null;
+      },
+      async (q) => {
+        const res = await safeFetch(`https://api.waifu.im/search/?included_tags=waifu`);
+        return res?.images?.[0]?.url || null;
+      },
+      async () => "https://i.ibb.co/3m9tWkd/fallback.png" // LAST fallback
     ];
 
     let img = null;
 
-    // Try all APIs until one works
+    // Try each source until success
     for (let src of sources) {
       try {
         img = await src(query);
@@ -50,7 +67,11 @@ module.exports = {
       } catch {}
     }
 
+    if (!img) {
+      return sock.sendMessage(sender, { text: "⚠️ All APIs failed. Please try again later." });
+    }
+
     // === Final Send ===
-    return sendImage(img, `💞 *Couple Mode (${query.toUpperCase()})* 💞`);
+    return sendImage(img, `💞 *Couple Image* 💞\n🔍 Query: ${query}`);
   }
 };
