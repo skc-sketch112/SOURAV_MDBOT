@@ -30,43 +30,47 @@ module.exports = {
     description: "Generate realistic text logos (20+ effects)",
 
     async execute(sock, m, args) {
-        if (args.length < 2) {
+        const jid = m.key.remoteJid;
+
+        // If no args → show menu
+        if (!args || args.length < 2) {
             return sock.sendMessage(
-                m.key.remoteJid,
+                jid,
                 { text: "⚠️ Usage: `.logo2 <style> <text>`\n\nAvailable styles:\n" + Object.keys(effects).join(", ") },
                 { quoted: m }
             );
         }
 
         const style = args[0].toLowerCase();
-        const text = encodeURIComponent(args.slice(1).join(" "));
+        const text = args.slice(1).join(" ");
 
         if (!effects[style]) {
             return sock.sendMessage(
-                m.key.remoteJid,
+                jid,
                 { text: `❌ Invalid style!\n✅ Choose from: ${Object.keys(effects).join(", ")}` },
                 { quoted: m }
             );
         }
 
-        const url = effects[style] + text;
+        const url = effects[style] + encodeURIComponent(text);
 
         try {
-            await axios.get(url, { responseType: "arraybuffer" });
+            // ✅ Fetch to confirm image exists
+            await axios.get(url);
 
             await sock.sendMessage(
-                m.key.remoteJid,
+                jid,
                 {
                     image: { url },
-                    caption: `✨ ${style.toUpperCase()} Logo for: ${decodeURIComponent(text)}`
+                    caption: `✨ ${style.toUpperCase()} Logo for: ${text}`
                 },
                 { quoted: m }
             );
         } catch (err) {
             console.error("Logo2 fetch failed:", err.message);
             await sock.sendMessage(
-                m.key.remoteJid,
-                { text: `❌ Logo fetch failed for *${style}*.\nTry again later.` },
+                jid,
+                { text: `❌ Failed to fetch *${style}* logo. Try again later.` },
                 { quoted: m }
             );
         }
