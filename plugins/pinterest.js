@@ -4,32 +4,34 @@ const cheerio = require("cheerio");
 module.exports = {
   name: "pinterest",
   alias: ["pin"],
+  desc: "Search images from Pinterest",
+  use: "<search term>",
   category: "search",
-  desc: "Search images from Pinterest (direct scraper, no API)",
-  use: "<query>",
+  
   async run({ msg, args }) {
-    if (!args.length) return msg.reply("❌ Usage: .pinterest <search term>");
+    if (!args.length) {
+      return msg.reply("❌ Usage: .pinterest <search term>\nExample: .pinterest cat");
+    }
 
     const query = args.join(" ");
     await msg.reply(`🔍 Searching Pinterest for *${query}* ...`);
 
     try {
-      const url = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`;
-      const { data } = await axios.get(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/118.0.0.0 Safari/537.36"
-        }
-      });
+      const res = await axios.get(
+        `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`
+      );
 
-      const $ = cheerio.load(data);
+      const $ = cheerio.load(res.data);
       let images = [];
 
       $("img").each((i, el) => {
         const src = $(el).attr("src");
-        if (src && src.startsWith("https")) images.push(src);
+        if (src && src.startsWith("http")) images.push(src);
       });
 
-      if (images.length === 0) return msg.reply("⚠️ No images found. Try another keyword.");
+      if (images.length === 0) {
+        return msg.reply("⚠️ No images found on Pinterest. Try another search.");
+      }
 
       const randomImg = images[Math.floor(Math.random() * images.length)];
 
@@ -38,9 +40,9 @@ module.exports = {
         { image: { url: randomImg }, caption: `✅ Pinterest result for: *${query}*` },
         { quoted: msg }
       );
-    } catch (e) {
-      console.error(e);
-      return msg.reply("❌ Failed to fetch Pinterest images. Try again later.");
+    } catch (err) {
+      console.error("Pinterest Error:", err.message);
+      await msg.reply("❌ Failed to fetch Pinterest images. Please try again later.");
     }
   }
 };
