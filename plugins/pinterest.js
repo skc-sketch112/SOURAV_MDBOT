@@ -1,10 +1,9 @@
 const axios = require("axios");
-const cheerio = require("cheerio");
 
 module.exports = {
     name: "pinterest",
     command: ["pinterest", "pin", "pint"],
-    description: "Fetch Pinterest images by scraping directly",
+    description: "Fetch Pinterest images by scraping JSON data",
 
     async execute(sock, m, args) {
         try {
@@ -23,7 +22,7 @@ module.exports = {
                 { quoted: m }
             );
 
-            // 🔥 Direct scrape from Pinterest search
+            // 🔥 Use Pinterest mobile site (easier to scrape)
             const url = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`;
             const res = await axios.get(url, {
                 headers: {
@@ -32,18 +31,34 @@ module.exports = {
                 }
             });
 
-            const $ = cheerio.load(res.data);
+            // Extract JSON data from page source
+            const regex = /<script id="__PWS_DATA__" type="application\/json">(.+?)<\/script>/;
+            const match = res.data.match(regex);
 
-            // Extract image URLs from <img> tags
-            let images = [];
-            $("img").each((_, el) => {
-                let img = $(el).attr("src");
-                if (img && img.startsWith("http") && img.includes("pinimg.com")) {
-                    images.push(img);
+            if (!match) {
+                return await sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: "⚠️ Could not parse Pinterest page. Try again later." },
+                    { quoted: m }
+                );
+            }
+
+            const jsonData = JSON.parse(match[1]);
+            let results = [];
+
+            try {
+                const pins = jsonData.props.initialReduxState.pins;
+                for (let id in pins) {
+                    let pin = pins[id];
+                    if (pin?.images?.orig?.url) {
+                        results.push(pin.images.orig.url);
+                    }
                 }
-            });
+            } catch (e) {
+                console.error("Parsing error:", e.message);
+            }
 
-            if (images.length === 0) {
+            if (results.length === 0) {
                 return await sock.sendMessage(
                     m.key.remoteJid,
                     { text: "⚠️ No images found. Try another search." },
@@ -52,7 +67,7 @@ module.exports = {
             }
 
             // 🎲 Pick random image
-            const image = images[Math.floor(Math.random() * images.length)];
+            const image = results[Math.floor(Math.random() * results.length)];
 
             await sock.sendMessage(
                 m.key.remoteJid,
@@ -67,7 +82,7 @@ module.exports = {
             console.error("❌ Pinterest scraper error:", err.message);
             await sock.sendMessage(
                 m.key.remoteJid,
-                { text: "⚠️ Error fetching images. Pinterest may have changed layout." },
+                { text: "⚠️ Error fetching images. Pinterest may have changed layout again." },
                 { quoted: m }
             );
         }
