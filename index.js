@@ -128,7 +128,19 @@ async function startBot() {
             m.message.extendedTextMessage?.text ||
             "";
 
-        if (!body.startsWith(".")) return; // prefix = "."
+        // ✅ Auto-run "onMessage" plugins even if no prefix
+        for (let plugin of commands.values()) {
+            if (typeof plugin.onMessage === "function") {
+                try {
+                    await plugin.onMessage(sock, m);
+                } catch (err) {
+                    console.error(`❌ Error in onMessage plugin:`, err.message);
+                }
+            }
+        }
+
+        // ✅ Only commands with prefix `.`
+        if (!body.startsWith(".")) return;
 
         let args = body.slice(1).trim().split(/\s+/);
         let cmd = args.shift().toLowerCase();
