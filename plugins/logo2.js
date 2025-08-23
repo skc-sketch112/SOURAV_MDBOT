@@ -1,46 +1,55 @@
 const axios = require("axios");
 
 const effects = {
-    // 🔹 Single-text effects
-    sand: { url: "https://photooxy-api-eta.vercel.app/api/sand?text=", multi: false },
-    smoke: { url: "https://photooxy-api-eta.vercel.app/api/smoke?text=", multi: false },
-    fire: { url: "https://photooxy-api-eta.vercel.app/api/fire?text=", multi: false },
-    neon: { url: "https://photooxy-api-eta.vercel.app/api/neon?text=", multi: false },
-    sky: { url: "https://photooxy-api-eta.vercel.app/api/sky?text=", multi: false },
-    thunder: { url: "https://photooxy-api-eta.vercel.app/api/thunder?text=", multi: false },
-    wood: { url: "https://photooxy-api-eta.vercel.app/api/wood?text=", multi: false },
-    stone: { url: "https://photooxy-api-eta.vercel.app/api/stone?text=", multi: false },
-    metal: { url: "https://photooxy-api-eta.vercel.app/api/metal?text=", multi: false },
-    ice: { url: "https://photooxy-api-eta.vercel.app/api/ice?text=", multi: false },
-    gradient: { url: "https://photooxy-api-eta.vercel.app/api/gradient?text=", multi: false },
-    harrypotter: { url: "https://photooxy-api-eta.vercel.app/api/harrypotter?text=", multi: false },
-    butterfly: { url: "https://photooxy-api-eta.vercel.app/api/butterfly?text=", multi: false },
-    shadow: { url: "https://photooxy-api-eta.vercel.app/api/shadow?text=", multi: false },
-    water: { url: "https://photooxy-api-eta.vercel.app/api/water?text=", multi: false },
-    blood: { url: "https://photooxy-api-eta.vercel.app/api/blood?text=", multi: false },
-    graffiti: { url: "https://photooxy-api-eta.vercel.app/api/graffiti?text=", multi: false },
-    galaxy: { url: "https://photooxy-api-eta.vercel.app/api/galaxy?text=", multi: false },
-
-    // 🔹 Multi-text effects (Name1 + Name2)
-    heart: { url: "https://photooxy-api-eta.vercel.app/api/heart?text1={t1}&text2={t2}", multi: true },
-    couple: { url: "https://photooxy-api-eta.vercel.app/api/couple?text1={t1}&text2={t2}", multi: true },
-    beach: { url: "https://photooxy-api-eta.vercel.app/api/beach?text1={t1}&text2={t2}", multi: true },
-    love: { url: "https://photooxy-api-eta.vercel.app/api/love?text1={t1}&text2={t2}", multi: true },
+    sand: "https://api.maher-zubair.xyz/photooxy/sand-writing?text=",
+    smoke: "https://api.maher-zubair.xyz/photooxy/smoke?text=",
+    sky: "https://api.maher-zubair.xyz/photooxy/sky-cloud?text=",
+    beach: "https://api.maher-zubair.xyz/photooxy/beach-text?text=",
+    love: "https://api.maher-zubair.xyz/photooxy/love?text=",
+    glass: "https://api.maher-zubair.xyz/photooxy/glass?text=",
+    coffee: "https://api.maher-zubair.xyz/photooxy/coffee-cup?text=",
+    fireworks: "https://api.maher-zubair.xyz/photooxy/fireworks?text=",
+    neon: "https://api.maher-zubair.xyz/photooxy/neon-light?text=",
+    shadow: "https://api.maher-zubair.xyz/photooxy/shadow?text=",
+    glow: "https://api.maher-zubair.xyz/photooxy/glow?text=",
+    wood: "https://api.maher-zubair.xyz/photooxy/wood?text=",
+    metal: "https://api.maher-zubair.xyz/photooxy/metal?text=",
+    blood: "https://api.maher-zubair.xyz/photooxy/blood?text=",
+    fire: "https://api.maher-zubair.xyz/photooxy/fire?text=",
+    water: "https://api.maher-zubair.xyz/photooxy/water?text=",
+    ice: "https://api.maher-zubair.xyz/photooxy/ice?text=",
+    galaxy: "https://api.maher-zubair.xyz/photooxy/galaxy?text=",
+    stone: "https://api.maher-zubair.xyz/photooxy/stone?text=",
+    grass: "https://api.maher-zubair.xyz/photooxy/grass?text=",
+    gold: "https://api.maher-zubair.xyz/photooxy/gold?text=",
 };
 
 module.exports = {
-    name: "logo",
-    command: ["logo"],
-    description: "Generate 25+ realistic logo styles",
+    name: "logo2",
+    command: ["logo2"],   // ✅ Aliases kept as logo2
+    description: "Generate realistic text logos (20+ effects)",
 
     async execute(sock, m, args) {
-        const [style, ...rest] = args;
+        if (args.length < 2) {
+            return sock.sendMessage(
+                m.key.remoteJid,
+                { text: "⚠️ Usage: `.logo2 <style> <text>`\n\nAvailable styles:\n" + Object.keys(effects).join(", ") },
+                { quoted: m }
+            );
+        }
 
-        if (!style || !effects[style]) {
-            let menu = "🎨 *Available Logo Styles:*\n\n";
-            for (let key in effects) {
-                menu += `• ${key}\n`;
-            }
-            menu += `\n👉 Example:\n.logo sand Subhayan\n.logo fire King\n.logo heart Subhayan Priya`;
-            return await sock.sendMessage(
-                m.key.remoteJid
+        const style = args[0].toLowerCase();
+        const text = encodeURIComponent(args.slice(1).join(" "));
+
+        if (!effects[style]) {
+            return sock.sendMessage(
+                m.key.remoteJid,
+                { text: `❌ Invalid style!\n✅ Choose from: ${Object.keys(effects).join(", ")}` },
+                { quoted: m }
+            );
+        }
+
+        const url = effects[style] + text;
+
+        try {
+            // ✅ check API health
