@@ -26,7 +26,7 @@ const effects = {
 
 module.exports = {
     name: "logo2",
-    command: ["logo2"],   // ✅ Aliases kept as logo2
+    command: ["logo2"],
     description: "Generate realistic text logos (20+ effects)",
 
     async execute(sock, m, args) {
@@ -52,4 +52,23 @@ module.exports = {
         const url = effects[style] + text;
 
         try {
-            // ✅ check API health
+            await axios.get(url, { responseType: "arraybuffer" });
+
+            await sock.sendMessage(
+                m.key.remoteJid,
+                {
+                    image: { url },
+                    caption: `✨ ${style.toUpperCase()} Logo for: ${decodeURIComponent(text)}`
+                },
+                { quoted: m }
+            );
+        } catch (err) {
+            console.error("Logo2 fetch failed:", err.message);
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { text: `❌ Logo fetch failed for *${style}*.\nTry again later.` },
+                { quoted: m }
+            );
+        }
+    }
+};
