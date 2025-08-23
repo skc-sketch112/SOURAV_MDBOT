@@ -4,8 +4,8 @@ const path = require("path");
 
 module.exports = {
   name: "voice",
-  command: ["voice"], // ⬅️ only .voice command now
-  description: "AI Voice Generator with 20+ voices + cinematic effects.",
+  command: ["voice"], // only .voice
+  description: "AI Voice Generator with 20+ voices + effects.",
 
   async execute(sock, m, args) {
     const sender = m.key.remoteJid;
@@ -99,4 +99,27 @@ module.exports = {
       return buffer;
     }
 
-    // === Handle Long Text
+    // === Handle Long Text ===
+    const chunks = text.match(/.{1,200}/g);
+
+    for (let i = 0; i < chunks.length; i++) {
+      const audioBuffer = await generateVoice(chunks[i], voice);
+      if (!audioBuffer) {
+        return sock.sendMessage(sender, { text: "⚠️ Voice generation failed. Try again later." });
+      }
+
+      const processed = applyEffect(audioBuffer, effect);
+
+      const filePath = path.join(__dirname, `voice_${Date.now()}.mp3`);
+      fs.writeFileSync(filePath, processed);
+
+      await sock.sendMessage(sender, {
+        audio: { url: filePath },
+        mimetype: "audio/mpeg",
+        ptt: false
+      }, { quoted: m });
+
+      fs.unlinkSync(filePath);
+    }
+  }
+};
