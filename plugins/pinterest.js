@@ -1,77 +1,55 @@
-const axios = require("axios");
-const cheerio = require("cheerio");
-
-async function pinterestScraper(query) {
-    try {
-        const url = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`;
-        const { data } = await axios.get(url, {
-            headers: {
-                "User-Agent":
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            },
-        });
-
-        const $ = cheerio.load(data);
-        let images = [];
-
-        // First try modern selector
-        $("img").each((i, el) => {
-            let src =
-                $(el).attr("src") ||
-                $(el).attr("data-src") ||
-                $(el).attr("srcset");
-
-            if (src && src.startsWith("http") && !src.includes("50x50")) {
-                images.push(src.split(" ")[0]); // handle srcset
-            }
-        });
-
-        images = [...new Set(images)]; // remove duplicates
-        return images;
-    } catch (err) {
-        console.error("Pinterest scraper error:", err.message);
-        return [];
-    }
-}
+const { pinterest } = require('@bochilteam/scraper');
 
 module.exports = {
     name: "pinterest",
-    command: ["pinterest", "pin"],
+    command: ["pin", "pinterest"],
     execute: async (sock, m, args) => {
-        const query = args.join(" ");
-        if (!query)
-            return sock.sendMessage(
-                m.key.remoteJid,
-                {
-                    text: "❌ Usage: .pinterest <search term>\nExample: .pinterest cat",
-                },
-                { quoted: m }
-            );
+        try {
+            if (!args[0]) {
+                return sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: "⚠️ Usage: .pin <search term>\nExample: .pin cat" },
+                    { quoted: m }
+                );
+            }
 
-        await sock.sendMessage(
-            m.key.remoteJid,
-            { text: `🔎 Searching Pinterest for *${query}* ...` },
-            { quoted: m }
-        );
-
-        const results = await pinterestScraper(query);
-
-        if (!results.length) {
-            return sock.sendMessage(
-                m.key.remoteJid,
-                { text: "⚠️ No images found on Pinterest." },
-                { quoted: m }
-            );
-        }
-
-        // send 3 random images
-        const randomImgs = results.sort(() => 0.5 - Math.random()).slice(0, 3);
-        for (let img of randomImgs) {
+            const query = args.join(" ");
             await sock.sendMessage(
                 m.key.remoteJid,
-                { image: { url: img }, caption: `Result for *${query}*` },
+                { text: `🔍 Searching Pinterest for *${query}* ...` },
+                { quoted: m }
+            );
+
+            // Fetch results
+            const results = await pinterest(query);
+
+            if (!results || results.length === 0) {
+                return sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: "⚠️ No images found." },
+                    { quoted: m }
+                );
+            }
+
+            // Send up to 5 random images
+            const shuffled = results.sort(() => 0.5 - Math.random());
+            const selected = shuffled.slice(0, 5);
+
+            for (let img of selected) {
+                await sock.sendMessage(
+                    m.key.remoteJid,
+                    { image: { url: img }, caption: `✅ Pinterest result for: *${query}*` },
+                    { quoted: m }
+                );
+            }
+
+        } catch (err) {
+            console.error("Pinterest plugin error:", err);
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { text: "❌ Error fetching images. Please try again." },
                 { quoted: m }
             );
         }
-    },
+    }
 };
