@@ -1,65 +1,64 @@
 const axios = require("axios");
 
 module.exports = {
-    name: "pinterest",
-    command: ["pinterest", "pin"],
-    description: "Search Pinterest images",
-    async execute(sock, m, args) {
-        if (!args.length) {
-            return sock.sendMessage(
+    name: "pin",
+    command: ["pin", "pin1", "pin2", "pin3", "pin4", "pin5"],
+    description: "Fetch Pinterest images by search query",
+
+    async execute(sock, m, args, command) {
+        let query = args.join(" ");
+        if (!query) {
+            return await sock.sendMessage(
                 m.key.remoteJid,
-                { text: "❌ Usage: .pinterest <search term>\nExample: .pinterest cat" },
+                { text: "⚠️ Provide a keyword!\n\nExample: `.pin cat` or `.pin2 anime`" },
                 { quoted: m }
             );
         }
 
-        const query = args.join(" ");
-        const apiKey = process.env.SERPAPI_KEY; // 🔑 From Render Environment
-
-        if (!apiKey) {
-            return sock.sendMessage(
-                m.key.remoteJid,
-                { text: "⚠️ Missing SerpAPI key. Please set SERPAPI_KEY in environment." },
-                { quoted: m }
-            );
+        // Number of images from command (default = 1)
+        let num = 1;
+        if (command.startsWith("pin") && command.length > 3) {
+            let n = parseInt(command.slice(3));
+            if (!isNaN(n) && n > 0 && n <= 10) num = n; // Limit to 10
         }
 
-        await sock.sendMessage(
-            m.key.remoteJid,
-            { text: `🔍 Searching Pinterest for *${query}* ...` },
-            { quoted: m }
-        );
+        let jid = m.key.remoteJid;
+        let urls = [];
 
         try {
-            const url = `https://serpapi.com/search.json?engine=pinterest&q=${encodeURIComponent(query)}&api_key=${apiKey}`;
-            const res = await axios.get(url);
+            // Pinterest scraping
+            const res = await axios.get(
+                `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`
+            );
 
-            let images = [];
-            if (res.data && res.data.pins) {
-                images = res.data.pins.map(pin => pin.images?.orig?.url).filter(Boolean);
+            const regex = /"url":"(https:\/\/i\.pinimg\.com[^"]+)"/g;
+            let match;
+            while ((match = regex.exec(res.data)) !== null) {
+                urls.push(match[1].replace(/\\u0026/g, "&"));
             }
+        } catch (err) {
+            console.error("Pinterest fetch failed:", err.message);
+        }
 
-            if (!images || images.length === 0) {
-                return sock.sendMessage(
-                    m.key.remoteJid,
-                    { text: "⚠️ No images found. Try another keyword." },
-                    { quoted: m }
-                );
-            }
-
-            // Pick random image
-            const randomImg = images[Math.floor(Math.random() * images.length)];
-
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { image: { url: randomImg }, caption: `✅ Pinterest result for: *${query}*` },
+        if (urls.length === 0) {
+            return await sock.sendMessage(
+                jid,
+                { text: `❌ No Pinterest images found for *${query}*.` },
                 { quoted: m }
             );
-        } catch (err) {
-            console.error("❌ Pinterest error:", err.message);
+        }
+
+        // Shuffle for randomness but still search-based
+        urls = urls.sort(() => 0.5 - Math.random());
+
+        // Send requested number of images
+        for (let i = 0; i < Math.min(num, urls.length); i++) {
             await sock.sendMessage(
-                m.key.remoteJid,
-                { text: "❌ Error fetching from Pinterest API." },
+                jid,
+                {
+                    image: { url: urls[i] },
+                    caption: `📌 *${query}* [${i + 1}/${num}]`
+                },
                 { quoted: m }
             );
         }
