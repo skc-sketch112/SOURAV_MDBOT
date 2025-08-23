@@ -1,9 +1,10 @@
 const axios = require("axios");
+const cheerio = require("cheerio");
 
 module.exports = {
     name: "pinterest",
     command: ["pinterest", "pin", "pint"],
-    description: "Fetch Pinterest images by search query",
+    description: "Fetch Pinterest images by scraping directly",
 
     async execute(sock, m, args) {
         try {
@@ -22,20 +23,36 @@ module.exports = {
                 { quoted: m }
             );
 
-            // ✅ New stable API
-            const url = `https://api.xyroinee.xyz/api/pinterest?text=${encodeURIComponent(query)}&apikey=free`;
-            const res = await axios.get(url, { timeout: 20000 });
+            // 🔥 Direct scrape from Pinterest search
+            const url = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`;
+            const res = await axios.get(url, {
+                headers: {
+                    "User-Agent":
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115 Safari/537.36"
+                }
+            });
 
-            if (!res.data || !res.data.data || res.data.data.length === 0) {
+            const $ = cheerio.load(res.data);
+
+            // Extract image URLs from <img> tags
+            let images = [];
+            $("img").each((_, el) => {
+                let img = $(el).attr("src");
+                if (img && img.startsWith("http") && img.includes("pinimg.com")) {
+                    images.push(img);
+                }
+            });
+
+            if (images.length === 0) {
                 return await sock.sendMessage(
                     m.key.remoteJid,
-                    { text: "⚠️ No results found." },
+                    { text: "⚠️ No images found. Try another search." },
                     { quoted: m }
                 );
             }
 
-            // 🎲 Random pick
-            const image = res.data.data[Math.floor(Math.random() * res.data.data.length)];
+            // 🎲 Pick random image
+            const image = images[Math.floor(Math.random() * images.length)];
 
             await sock.sendMessage(
                 m.key.remoteJid,
@@ -47,10 +64,10 @@ module.exports = {
             );
 
         } catch (err) {
-            console.error("❌ Pinterest error:", err.message);
+            console.error("❌ Pinterest scraper error:", err.message);
             await sock.sendMessage(
                 m.key.remoteJid,
-                { text: "⚠️ Error fetching images. API might be down. Try later." },
+                { text: "⚠️ Error fetching images. Pinterest may have changed layout." },
                 { quoted: m }
             );
         }
