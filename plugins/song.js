@@ -38,4 +38,30 @@ module.exports = {
                          `🎤 *Channel:* ${videoInfo.author.name}\n` +
                          `⏱️ *Duration:* ${videoInfo.timestamp}\n` +
                          `👁️ *Views:* ${videoInfo.views.toLocaleString()}\n` +
-                         `🔗 *Link
+                         `🔗 *Link:* ${videoUrl}\n\n` +
+                         `⏳ *Downloading...*`
+            }, { quoted: m });
+
+            // 📥 Download audio with yt-dlp
+            const filePath = path.join(__dirname, "song.mp3");
+            await youtubedlv2(videoUrl, {
+                extractAudio: true,
+                audioFormat: "mp3",
+                audioQuality: 0,
+                output: filePath,
+            });
+
+            // 🎧 Send audio file
+            await sock.sendMessage(m.key.remoteJid, {
+                audio: fs.readFileSync(filePath),
+                mimetype: "audio/mpeg",
+                fileName: `${videoInfo.title}.mp3`
+            }, { quoted: m });
+
+            fs.unlinkSync(filePath); // cleanup
+        } catch (err) {
+            console.error(err);
+            sock.sendMessage(m.key.remoteJid, { text: "❌ Error downloading audio. Try another song." }, { quoted: m });
+        }
+    }
+};
