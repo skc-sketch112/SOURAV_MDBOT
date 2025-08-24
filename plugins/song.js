@@ -8,7 +8,11 @@ module.exports = {
     command: ["song"],
     execute: async (sock, m, args) => {
         if (!args[0]) {
-            return sock.sendMessage(m.key.remoteJid, { text: "❌ Please provide a song name.\nExample: `.song despacito`" }, { quoted: m });
+            return sock.sendMessage(
+                m.key.remoteJid,
+                { text: "❌ Please provide a song name.\nExample: `.song despacito`" },
+                { quoted: m }
+            );
         }
 
         const query = args.join(" ");
@@ -16,23 +20,34 @@ module.exports = {
             // 🔍 Search YouTube for the song
             const search = await yts(query);
             if (!search.videos || search.videos.length === 0) {
-                return sock.sendMessage(m.key.remoteJid, { text: "❌ No results found." }, { quoted: m });
+                return sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: "❌ No results found." },
+                    { quoted: m }
+                );
             }
 
             const video = search.videos[0]; // Take first result
             const url = video.url;
-            const outFile = path.join(__dirname, `../downloads/${Date.now()}.mp3`);
+            const downloadsDir = path.join(__dirname, "../downloads");
+            const outFile = path.join(downloadsDir, `${Date.now()}.mp3`);
 
-            // Make sure downloads folder exists
-            if (!fs.existsSync(path.join(__dirname, "../downloads"))) {
-                fs.mkdirSync(path.join(__dirname, "../downloads"));
+            // ✅ Ensure downloads folder exists
+            if (!fs.existsSync(downloadsDir)) {
+                fs.mkdirSync(downloadsDir, { recursive: true });
             }
 
-            sock.sendMessage(m.key.remoteJid, { text: `🎶 Downloading *${video.title}*...\n⏳ Please wait...` }, { quoted: m });
+            await sock.sendMessage(
+                m.key.remoteJid,
+                { text: `🎶 Downloading *${video.title}*...\n⏳ Please wait...` },
+                { quoted: m }
+            );
 
-            // ⚡ Use local yt-dlp binary
+            // ⚡ Use local yt-dlp binary from render-build.sh
+            const ytdlpPath = path.join(__dirname, "../yt-dlp");
+
             execFile(
-                path.join(__dirname, "../yt-dlp"),
+                ytdlpPath,
                 [
                     "-x",
                     "--audio-format", "mp3",
@@ -42,10 +57,14 @@ module.exports = {
                 (error, stdout, stderr) => {
                     if (error) {
                         console.error("yt-dlp error:", error);
-                        return sock.sendMessage(m.key.remoteJid, { text: "❌ Failed to download audio. Try again later." }, { quoted: m });
+                        return sock.sendMessage(
+                            m.key.remoteJid,
+                            { text: "❌ Failed to download audio. Try again later." },
+                            { quoted: m }
+                        );
                     }
 
-                    // Send audio to WhatsApp
+                    // ✅ Send audio to WhatsApp
                     sock.sendMessage(
                         m.key.remoteJid,
                         {
@@ -55,9 +74,20 @@ module.exports = {
                         },
                         { quoted: m }
                     ).then(() => {
-                        fs.unlinkSync(outFile); // delete after sending
+                        // Clean up temp file after sending
+                        fs.unlink(outFile, (err) => {
+                            if (err) console.error("Cleanup error:", err);
+                        });
                     });
                 }
             );
         } catch (err) {
-            console.error("Song command error:", err
+            console.error("Song command error:", err);
+            return sock.sendMessage(
+                m.key.remoteJid,
+                { text: "⚠️ An unexpected error occurred while processing your request." },
+                { quoted: m }
+            );
+        }
+    }
+};
