@@ -1,4 +1,7 @@
+const youtubedl = require("youtube-dl-exec");
 const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
 
 module.exports = {
     name: "song",
@@ -6,82 +9,95 @@ module.exports = {
     execute: async (sock, m, args) => {
         try {
             if (!args[0]) {
-                return sock.sendMessage(m.key.remoteJid, { text: "❌ Please provide a song name." }, { quoted: m });
+                return sock.sendMessage(m.key.remoteJid, { text: "❌ Please provide a song name.\nExample: *.song despacito*" }, { quoted: m });
             }
 
-            const query = args.join(" ");
-            await sock.sendMessage(m.key.remoteJid, { text: `🔎 Searching for *${query}*...` }, { quoted: m });
+            let query = args.join(" ");
+            let file = path.join(__dirname, "song.mp3");
 
-            // Step 1: Search YouTube
-            const search = await axios.get(`https://api.vreden.my.id/api/ytsearch?text=${encodeURIComponent(query)}`);
-            if (!search.data || !search.data[0]) {
-                return sock.sendMessage(m.key.remoteJid, { text: "⚠️ No results found." }, { quoted: m });
-            }
+            // =============================
+            // 1. Try YouTube first
+            // =============================
+            try {
+                const result = await youtubedl(`ytsearch1:${query}`, {
+                    dumpSingleJson: true,
+                    noCheckCertificates: true,
+                    noWarnings: true,
+                    preferFreeFormats: true,
+                    addHeader: ["referer:youtube.com", "user-agent:googlebot"]
+                });
 
-            const video = search.data[0];
-            const url = video.url;
+                if (result?.entries?.length > 0) {
+                    const video = result.entries[0];
+                    const title = video.title;
+                    const duration = video.duration;
+                    const thumbnail = video.thumbnail;
+                    const url = video.webpage_url;
 
-            // Step 2: List of APIs (fallback rotation)
-            const apis = [
-                `https://api.vreden.my.id/api/ytdl?url=${encodeURIComponent(url)}&filter=audioonly&quality=highestaudio`,
-                `https://api.ryzendesu.vip/api/download/ytmp3?url=${encodeURIComponent(url)}`,
-                `https://api-smd.vercel.app/api/ytmp3?url=${encodeURIComponent(url)}`,
-                `https://widipe.com/download/ytmp3?url=${encodeURIComponent(url)}`
-            ];
+                    // Download mp3
+                    await youtubedl(url, {
+                        extractAudio: true,
+                        audioFormat: "mp3",
+                        audioQuality: 0,
+                        output: file,
+                    });
 
-            let dlUrl = null;
+                    // Send info
+                    await sock.sendMessage(m.key.remoteJid, {
+                        image: { url: thumbnail },
+                        caption: `🎶 *${title}*\n⏱ Duration: ${duration}\n🔗 [YouTube Link](${url})`
+                    }, { quoted: m });
 
-            // Step 3: Try APIs one by one
-            for (let api of apis) {
-                try {
-                    const res = await axios.get(api);
-                    if (res.data.url) {
-                        dlUrl = res.data.url;
-                        break;
-                    } else if (res.data.result?.download_url) {
-                        dlUrl = res.data.result.download_url;
-                        break;
-                    } else if (res.data.result) {
-                        dlUrl = res.data.result;
-                        break;
-                    }
-                } catch (e) {
-                    console.log(`❌ API failed: ${api}`);
+                    // Send audio
+                    await sock.sendMessage(m.key.remoteJid, {
+                        audio: { url: file },
+                        mimetype: "audio/mp4",
+                        ptt: false
+                    }, { quoted: m });
+
+                    fs.unlinkSync(file);
+                    return;
                 }
+            } catch (ytErr) {
+                console.log("YouTube failed, switching to API…");
             }
 
-            // Step 4: If all APIs fail
-            if (!dlUrl) {
-                return sock.sendMessage(m.key.remoteJid, { text: "⚠️ All servers failed. Please try again later." }, { quoted: m });
+            // =============================
+            // 2. Fallback: JioSaavn API
+            // =============================
+            try {
+                const res = await axios.get(`https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}`);
+                if (res.data.data && res.data.data.results.length > 0) {
+                    const song = res.data.data.results[0];
+                    const title = song.name;
+                    const artists = song.primaryArtists;
+                    const url = song.downloadUrl[4].link; // 320kbps mp3
+                    const thumbnail = song.image[2].link;
+
+                    await sock.sendMessage(m.key.remoteJid, {
+                        image: { url: thumbnail },
+                        caption: `🎶 *${title}*\n👤 ${artists}\n🔗 Saavn`
+                    }, { quoted: m });
+
+                    await sock.sendMessage(m.key.remoteJid, {
+                        audio: { url },
+                        mimetype: "audio/mp4",
+                        ptt: false
+                    }, { quoted: m });
+                    return;
+                }
+            } catch (sErr) {
+                console.log("Saavn API also failed");
             }
 
-            // Step 5: Download MP3
-            const audioFile = await axios.get(dlUrl, { responseType: "arraybuffer" });
+            // =============================
+            // 3. Final fallback: generic API
+            // =============================
+            await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Sorry, all servers failed. Try another song name." }, { quoted: m });
 
-            // Step 6: Send Thumbnail + Info (Spotify Style)
-            await sock.sendMessage(
-                m.key.remoteJid,
-                {
-                    image: { url: video.thumbnail },
-                    caption: `🎵 *${video.title}*\n👤 Channel: ${video.author?.name || "Unknown"}\n⏱ Duration: ${video.timestamp || "N/A"}\n🔗 ${url}`
-                },
-                { quoted: m }
-            );
-
-            // Step 7: Send Audio
-            await sock.sendMessage(
-                m.key.remoteJid,
-                {
-                    audio: audioFile.data,
-                    mimetype: "audio/mpeg",
-                    fileName: `${video.title}.mp3`
-                },
-                { quoted: m }
-            );
-
-        } catch (err) {
-            console.error("Song command error:", err.message);
-            await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Error downloading song. Try again later." }, { quoted: m });
+        } catch (e) {
+            console.error(e);
+            await sock.sendMessage(m.key.remoteJid, { text: "❌ Error fetching song. Try again later." }, { quoted: m });
         }
-    },
+    }
 };
