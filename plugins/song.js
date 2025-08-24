@@ -10,13 +10,15 @@ module.exports = {
   category: "media",
   async execute(sock, m, args) {
     try {
-      if (!args[0]) return m.reply("🎵 Example: .song kesariya");
+      if (!args[0]) {
+        return await sock.sendMessage(m.chat, { text: "🎵 Example: .song kesariya" }, { quoted: m });
+      }
 
       const query = args.join(" ");
       let audioUrl = null;
       let title = query;
 
-      // 1️⃣ Try JioSaavn API
+      // 1️⃣ JioSaavn
       try {
         let res = await fetch(`https://jiosaavn-api.vercel.app/search/songs?query=${encodeURIComponent(query)}`);
         let data = await res.json();
@@ -27,7 +29,7 @@ module.exports = {
         }
       } catch (e) {}
 
-      // 2️⃣ Try SoundCloud API if JioSaavn fails
+      // 2️⃣ SoundCloud
       if (!audioUrl) {
         try {
           let res = await fetch(`https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(query)}&client_id=2t9loNQH90kzJcsFCODdigxfp325aq4z`);
@@ -39,7 +41,7 @@ module.exports = {
         } catch (e) {}
       }
 
-      // 3️⃣ Fallback: YouTube (audio only, no cookies required for many)
+      // 3️⃣ YouTube fallback
       if (!audioUrl) {
         const tmpFile = path.join(__dirname, "song.mp3");
         await ytdl(`ytsearch:${query}`, {
@@ -48,26 +50,4 @@ module.exports = {
           audioQuality: "0",
           output: tmpFile,
           noCheckCertificates: true,
-          noWarnings: true,
-          preferFreeFormats: true
-        });
-        return await sock.sendMessage(m.chat, { audio: fs.readFileSync(tmpFile), mimetype: "audio/mp4" }, { quoted: m });
-      }
-
-      // 🎶 Send Audio
-      const tmpFile = path.join(__dirname, "song.mp3");
-      const res2 = await fetch(audioUrl);
-      const buffer = await res2.arrayBuffer();
-      fs.writeFileSync(tmpFile, Buffer.from(buffer));
-
-      await sock.sendMessage(m.chat, {
-        audio: fs.readFileSync(tmpFile),
-        mimetype: "audio/mp4"
-      }, { quoted: m });
-
-    } catch (e) {
-      console.error(e);
-      m.reply("❌ Song fetch failed. Try again!");
-    }
-  }
-};
+          noWarnings
