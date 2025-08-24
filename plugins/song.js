@@ -1,68 +1,73 @@
-const youtubedl = require("youtube-dl-exec");
-const yts = require("yt-search");
+const fetch = require("node-fetch");
 const fs = require("fs");
 const path = require("path");
+const ytdl = require("youtube-dl-exec");
 
 module.exports = {
   name: "song",
-  command: ["song", "play", "music"],
-  execute: async (sock, m, args) => {
+  alias: ["music"],
+  desc: "Download songs (JioSaavn > SoundCloud > YouTube fallback)",
+  category: "media",
+  async execute(sock, m, args) {
     try {
-      if (!args[0]) {
-        return sock.sendMessage(m.key.remoteJid, { 
-          text: "❌ Enter song name or YouTube link." 
-        }, { quoted: m });
-      }
+      if (!args[0]) return m.reply("🎵 Example: .song kesariya");
 
-      let query = args.join(" ");
-      let videoInfo, videoUrl;
+      const query = args.join(" ");
+      let audioUrl = null;
+      let title = query;
 
-      // ✅ If it's already a YouTube link
-      if (query.includes("youtu")) {
-        videoUrl = query;
-        const search = await yts({ videoId: new URL(videoUrl).searchParams.get("v") });
-        videoInfo = search.videos?.[0];
-      } else {
-        // ✅ Otherwise search by song name
-        const search = await yts(query);
-        videoInfo = search.videos?.[0];
-        if (!videoInfo) {
-          return sock.sendMessage(m.key.remoteJid, { text: "⚠️ No results found" }, { quoted: m });
+      // 1️⃣ Try JioSaavn API
+      try {
+        let res = await fetch(`https://jiosaavn-api.vercel.app/search/songs?query=${encodeURIComponent(query)}`);
+        let data = await res.json();
+        if (data.data && data.data.length > 0) {
+          let song = data.data[0];
+          audioUrl = song.downloadUrl[song.downloadUrl.length - 1].link;
+          title = song.title;
         }
-        videoUrl = videoInfo.url;
+      } catch (e) {}
+
+      // 2️⃣ Try SoundCloud API if JioSaavn fails
+      if (!audioUrl) {
+        try {
+          let res = await fetch(`https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(query)}&client_id=2t9loNQH90kzJcsFCODdigxfp325aq4z`);
+          let data = await res.json();
+          if (data.collection && data.collection.length > 0) {
+            audioUrl = data.collection[0].media.transcodings[0].url + `?client_id=2t9loNQH90kzJcsFCODdigxfp325aq4z`;
+            title = data.collection[0].title;
+          }
+        } catch (e) {}
       }
 
-      // Send info first
-      await sock.sendMessage(m.key.remoteJid, {
-        image: { url: videoInfo.thumbnail },
-        caption: `🎶 *${videoInfo.title}*\n⏱: ${videoInfo.timestamp}\n👁: ${videoInfo.views.toLocaleString()}\n🔗 ${videoUrl}`
-      }, { quoted: m });
+      // 3️⃣ Fallback: YouTube (audio only, no cookies required for many)
+      if (!audioUrl) {
+        const tmpFile = path.join(__dirname, "song.mp3");
+        await ytdl(`ytsearch:${query}`, {
+          extractAudio: true,
+          audioFormat: "mp3",
+          audioQuality: "0",
+          output: tmpFile,
+          noCheckCertificates: true,
+          noWarnings: true,
+          preferFreeFormats: true
+        });
+        return await sock.sendMessage(m.chat, { audio: fs.readFileSync(tmpFile), mimetype: "audio/mp4" }, { quoted: m });
+      }
 
-      // Temp file for download
+      // 🎶 Send Audio
       const tmpFile = path.join(__dirname, "song.mp3");
+      const res2 = await fetch(audioUrl);
+      const buffer = await res2.arrayBuffer();
+      fs.writeFileSync(tmpFile, Buffer.from(buffer));
 
-      // ✅ Download as MP3 with BEST quality
-      await youtubedl(videoUrl, {
-        extractAudio: true,
-        audioFormat: "mp3",
-        audioQuality: "0",   // 0 = best
-        output: tmpFile,
-        noCheckCertificates: true,
-        noWarnings: true,
-        preferFreeFormats: true
-      });
-
-      // ✅ Send audio
-      await sock.sendMessage(m.key.remoteJid, {
+      await sock.sendMessage(m.chat, {
         audio: fs.readFileSync(tmpFile),
-        mimetype: "audio/mpeg",
-        fileName: `${videoInfo.title}.mp3`
+        mimetype: "audio/mp4"
       }, { quoted: m });
 
-      fs.unlinkSync(tmpFile); // cleanup
-    } catch (err) {
-      console.error(err);
-      await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Error downloading song." }, { quoted: m });
+    } catch (e) {
+      console.error(e);
+      m.reply("❌ Song fetch failed. Try again!");
     }
   }
 };
