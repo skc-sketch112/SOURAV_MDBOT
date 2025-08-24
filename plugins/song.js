@@ -10,8 +10,9 @@ module.exports = {
             }
 
             const query = args.join(" ");
+            await sock.sendMessage(m.key.remoteJid, { text: `🔎 Searching for *${query}*...` }, { quoted: m });
 
-            // Step 1: Search song
+            // Step 1: Search YouTube
             const search = await axios.get(`https://api.vreden.my.id/api/ytsearch?text=${encodeURIComponent(query)}`);
             if (!search.data || !search.data[0]) {
                 return sock.sendMessage(m.key.remoteJid, { text: "⚠️ No results found." }, { quoted: m });
@@ -20,17 +21,54 @@ module.exports = {
             const video = search.data[0];
             const url = video.url;
 
-            // Step 2: Get download link (not raw audio yet)
-            const dl = await axios.get(`https://api.vreden.my.id/api/ytdl?url=${encodeURIComponent(url)}&filter=audioonly&quality=highestaudio`);
+            // Step 2: List of APIs (fallback rotation)
+            const apis = [
+                `https://api.vreden.my.id/api/ytdl?url=${encodeURIComponent(url)}&filter=audioonly&quality=highestaudio`,
+                `https://api.ryzendesu.vip/api/download/ytmp3?url=${encodeURIComponent(url)}`,
+                `https://api-smd.vercel.app/api/ytmp3?url=${encodeURIComponent(url)}`,
+                `https://widipe.com/download/ytmp3?url=${encodeURIComponent(url)}`
+            ];
 
-            if (!dl.data || !dl.data.url) {
-                return sock.sendMessage(m.key.remoteJid, { text: "⚠️ Download link failed." }, { quoted: m });
+            let dlUrl = null;
+
+            // Step 3: Try APIs one by one
+            for (let api of apis) {
+                try {
+                    const res = await axios.get(api);
+                    if (res.data.url) {
+                        dlUrl = res.data.url;
+                        break;
+                    } else if (res.data.result?.download_url) {
+                        dlUrl = res.data.result.download_url;
+                        break;
+                    } else if (res.data.result) {
+                        dlUrl = res.data.result;
+                        break;
+                    }
+                } catch (e) {
+                    console.log(`❌ API failed: ${api}`);
+                }
             }
 
-            // Step 3: Download the actual MP3 file
-            const audioFile = await axios.get(dl.data.url, { responseType: "arraybuffer" });
+            // Step 4: If all APIs fail
+            if (!dlUrl) {
+                return sock.sendMessage(m.key.remoteJid, { text: "⚠️ All servers failed. Please try again later." }, { quoted: m });
+            }
 
-            // Step 4: Send to WhatsApp
+            // Step 5: Download MP3
+            const audioFile = await axios.get(dlUrl, { responseType: "arraybuffer" });
+
+            // Step 6: Send Thumbnail + Info (Spotify Style)
+            await sock.sendMessage(
+                m.key.remoteJid,
+                {
+                    image: { url: video.thumbnail },
+                    caption: `🎵 *${video.title}*\n👤 Channel: ${video.author?.name || "Unknown"}\n⏱ Duration: ${video.timestamp || "N/A"}\n🔗 ${url}`
+                },
+                { quoted: m }
+            );
+
+            // Step 7: Send Audio
             await sock.sendMessage(
                 m.key.remoteJid,
                 {
