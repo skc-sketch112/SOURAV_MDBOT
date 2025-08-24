@@ -16,7 +16,7 @@ async function downloadMediaMessage(message, type = "image") {
 
 module.exports = {
   name: "pdf",
-  alias: ["pdfimg", "pdfdoc"],
+  alias: ["pdfimg", "pdfdoc","pdftext"],
   category: "tools",
   desc: "Create PDF from text or images",
   async execute(sock, msg, args) {
