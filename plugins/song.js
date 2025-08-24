@@ -1,5 +1,5 @@
-const youtubedl = require("youtube-dl-exec");
-const axios = require("axios");
+const ytSearch = require("yt-search");
+const ytdl = require("ytdl-core");
 const fs = require("fs");
 const path = require("path");
 
@@ -9,66 +9,49 @@ module.exports = {
     execute: async (sock, m, args) => {
         try {
             if (!args[0]) {
-                return sock.sendMessage(m.key.remoteJid, { text: "❌ Please provide a song name.\nExample: *.song despacito*" }, { quoted: m });
+                return sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: "❌ Please provide a song name.\nExample: *.song despacito*" },
+                    { quoted: m }
+                );
             }
 
             let query = args.join(" ");
+            let search = await ytSearch(query);
+
+            if (!search.videos.length) {
+                return sock.sendMessage(m.key.remoteJid, { text: "⚠️ Song not found." }, { quoted: m });
+            }
+
+            let video = search.videos[0];
             let file = path.join(__dirname, "song.mp3");
 
-            // ========== 1. YouTube First ==========
-            try {
-                const result = await youtubedl(`ytsearch1:${query}`, {
-                    dumpSingleJson: true,
-                    noCheckCertificates: true,
-                    noWarnings: true,
-                    preferFreeFormats: true,
-                    addHeader: ["referer:youtube.com", "user-agent:googlebot"]
-                });
+            // 🎵 Send thumbnail + info first
+            await sock.sendMessage(
+                m.key.remoteJid,
+                {
+                    image: { url: video.thumbnail },
+                    caption: `🎶 *${video.title}*\n\n⏱ Duration: ${video.timestamp}\n👀 Views: ${video.views.toLocaleString()}\n📤 Upload: ${video.ago}\n\n⬇️ Downloading, please wait...`
+                },
+                { quoted: m }
+            );
 
-                if (result?.entries?.length > 0) {
-                    const video = result.entries[0];
-                    const url = video.webpage_url;
-                    const title = video.title;
+            // 📥 Download audio
+            const stream = ytdl(video.url, { filter: "audioonly", quality: "highestaudio" })
+                .pipe(fs.createWriteStream(file));
 
-                    await youtubedl(url, {
-                        extractAudio: true,
-                        audioFormat: "mp3",
-                        audioQuality: 0,
-                        output: file,
-                    });
-
-                    await sock.sendMessage(m.key.remoteJid, {
-                        audio: { url: file },
-                        mimetype: "audio/mp4"
-                    }, { quoted: m });
-
-                    fs.unlinkSync(file);
-                    return;
-                }
-            } catch (ytErr) {
-                console.log("❌ YouTube failed, switching…");
-            }
-
-            // ========== 2. Stable Fallback (Piyush API) ==========
-            try {
-                const api = await axios.get(`https://api-piyush.up.railway.app/song?query=${encodeURIComponent(query)}`);
-                if (api.data.status && api.data.downloadUrl) {
-                    await sock.sendMessage(m.key.remoteJid, {
-                        audio: { url: api.data.downloadUrl },
-                        mimetype: "audio/mp4"
-                    }, { quoted: m });
-                    return;
-                }
-            } catch (apiErr) {
-                console.log("❌ API fallback failed");
-            }
-
-            // If all fail
-            await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Sorry, servers failed. Try another song or check API." }, { quoted: m });
+            stream.on("finish", async () => {
+                await sock.sendMessage(
+                    m.key.remoteJid,
+                    { audio: { url: file }, mimetype: "audio/mp4", ptt: false },
+                    { quoted: m }
+                );
+                fs.unlinkSync(file); // delete file after sending
+            });
 
         } catch (e) {
             console.error(e);
-            await sock.sendMessage(m.key.remoteJid, { text: "❌ Error fetching song." }, { quoted: m });
+            await sock.sendMessage(m.key.remoteJid, { text: "❌ Error while fetching song." }, { quoted: m });
         }
     }
 };
