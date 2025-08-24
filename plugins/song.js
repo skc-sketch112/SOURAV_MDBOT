@@ -1,89 +1,51 @@
-const play = require("play-dl");
-const scdl = require("soundcloud-downloader").default;
-const axios = require("axios");
-const fs = require("fs");
+const yts = require("yt-search");
 const ytdl = require("ytdl-core");
+const fs = require("fs");
 
 module.exports = {
     name: "song",
     command: ["song", "play"],
     execute: async (sock, m, args) => {
-        if (!args || args.length === 0) {
-            return await sock.sendMessage(m.key.remoteJid, { text: "❌ Please give me a song name!" }, { quoted: m });
-        }
-
-        let query = args.join(" ");
-        let jid = m.key.remoteJid;
-
         try {
-            // === TRY YOUTUBE FIRST ===
-            let ytInfo = await play.search(query, { limit: 1 });
-            if (ytInfo.length > 0) {
-                let yt = ytInfo[0];
-                let stream = ytdl(yt.url, { filter: "audioonly", quality: "highestaudio" });
-
-                const filePath = `./${Date.now()}.mp3`;
-                const writeStream = fs.createWriteStream(filePath);
-                stream.pipe(writeStream);
-
-                writeStream.on("finish", async () => {
-                    await sock.sendMessage(jid, {
-                        audio: { url: filePath },
-                        mimetype: "audio/mpeg",
-                        ptt: false,
-                        caption: `🎵 *${yt.title}*\n👤 ${yt.channel?.name || "Unknown"}\n📀 Source: YouTube`
-                    }, { quoted: m });
-                    fs.unlinkSync(filePath);
-                });
-                return;
+            if (!args.length) {
+                return sock.sendMessage(m.key.remoteJid, { text: "❌ Please provide a song name!\nExample: .song Tum Hi Ho" }, { quoted: m });
             }
 
-            throw new Error("YouTube failed");
+            const query = args.join(" ");
+            const search = await yts(query);
+
+            if (!search.videos.length) {
+                return sock.sendMessage(m.key.remoteJid, { text: "⚠️ No results found!" }, { quoted: m });
+            }
+
+            const video = search.videos[0];
+            const filePath = `./${video.videoId}.mp3`;
+
+            // download audio
+            const stream = ytdl(video.url, { filter: "audioonly", quality: "highestaudio" });
+            const writeStream = fs.createWriteStream(filePath);
+            stream.pipe(writeStream);
+
+            writeStream.on("finish", async () => {
+                // send song info first
+                await sock.sendMessage(m.key.remoteJid, { 
+                    image: { url: video.thumbnail }, 
+                    caption: `🎵 *${video.title}*\n⏱️ ${video.timestamp}\n📺 ${video.author.name}\n🔗 ${video.url}` 
+                }, { quoted: m });
+
+                // send audio so everyone in group sees
+                await sock.sendMessage(m.key.remoteJid, { 
+                    audio: { url: filePath }, 
+                    mimetype: "audio/mp4", 
+                    fileName: `${video.title}.mp3` 
+                }, { quoted: m });
+
+                // ❌ removed auto delete (file stays in folder)
+            });
 
         } catch (err) {
-            console.log("YouTube error, trying SoundCloud...", err.message);
-
-            // === FALLBACK: SOUNDCLOUD ===
-            try {
-                const scTrack = await scdl.search(query);
-                if (scTrack && scTrack.collection.length > 0) {
-                    let track = scTrack.collection[0];
-                    let filePath = `./${Date.now()}.mp3`;
-                    await scdl.download(track.permalink_url).then(stream => {
-                        stream.pipe(fs.createWriteStream(filePath)).on("finish", async () => {
-                            await sock.sendMessage(jid, {
-                                audio: { url: filePath },
-                                mimetype: "audio/mpeg",
-                                caption: `🎶 *${track.title}*\n👤 ${track.user.username}\n📀 Source: SoundCloud`
-                            }, { quoted: m });
-                            fs.unlinkSync(filePath);
-                        });
-                    });
-                    return;
-                }
-                throw new Error("SoundCloud failed");
-            } catch (err2) {
-                console.log("SoundCloud error, trying JioSaavn...", err2.message);
-
-                // === LAST RESORT: JIOSAAVN ===
-                try {
-                    let res = await axios.get(`https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}`);
-                    let song = res.data.data.results[0];
-                    if (song) {
-                        await sock.sendMessage(jid, {
-                            audio: { url: song.downloadUrl[4].link },
-                            mimetype: "audio/mpeg",
-                            caption: `🎧 *${song.name}*\n👤 ${song.primaryArtists}\n📀 Source: JioSaavn`
-                        }, { quoted: m });
-                        return;
-                    }
-                } catch (err3) {
-                    console.log("JioSaavn failed", err3.message);
-                }
-            }
+            console.error(err);
+            await sock.sendMessage(m.key.remoteJid, { text: "❌ Error fetching song!" }, { quoted: m });
         }
-
-        // If everything fails
-        await sock.sendMessage(jid, { text: "⚠️ Sorry, I couldn’t fetch this song. Try another name!" }, { quoted: m });
     }
 };
