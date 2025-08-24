@@ -1,5 +1,5 @@
-const ytSearch = require("yt-search");
-const ytdl = require("ytdl-core");
+const { execFile } = require("child_process");
+const yts = require("yt-search");
 const fs = require("fs");
 const path = require("path");
 
@@ -7,51 +7,57 @@ module.exports = {
     name: "song",
     command: ["song"],
     execute: async (sock, m, args) => {
-        try {
-            if (!args[0]) {
-                return sock.sendMessage(
-                    m.key.remoteJid,
-                    { text: "❌ Please provide a song name.\nExample: *.song despacito*" },
-                    { quoted: m }
-                );
-            }
-
-            let query = args.join(" ");
-            let search = await ytSearch(query);
-
-            if (!search.videos.length) {
-                return sock.sendMessage(m.key.remoteJid, { text: "⚠️ Song not found." }, { quoted: m });
-            }
-
-            let video = search.videos[0];
-            let file = path.join(__dirname, "song.mp3");
-
-            // 🎵 Send thumbnail + info first
-            await sock.sendMessage(
-                m.key.remoteJid,
-                {
-                    image: { url: video.thumbnail },
-                    caption: `🎶 *${video.title}*\n\n⏱ Duration: ${video.timestamp}\n👀 Views: ${video.views.toLocaleString()}\n📤 Upload: ${video.ago}\n\n⬇️ Downloading, please wait...`
-                },
-                { quoted: m }
-            );
-
-            // 📥 Download audio
-            const stream = ytdl(video.url, { filter: "audioonly", quality: "highestaudio" })
-                .pipe(fs.createWriteStream(file));
-
-            stream.on("finish", async () => {
-                await sock.sendMessage(
-                    m.key.remoteJid,
-                    { audio: { url: file }, mimetype: "audio/mp4", ptt: false },
-                    { quoted: m }
-                );
-                fs.unlinkSync(file); // delete file after sending
-            });
-
-        } catch (e) {
-            console.error(e);
-            await sock.sendMessage(m.key.remoteJid, { text: "❌ Error while fetching song." }, { quoted: m });
+        if (!args[0]) {
+            return sock.sendMessage(m.key.remoteJid, { text: "❌ Please provide a song name.\nExample: `.song despacito`" }, { quoted: m });
         }
-    }
-};
+
+        const query = args.join(" ");
+        try {
+            // 🔍 Search YouTube for the song
+            const search = await yts(query);
+            if (!search.videos || search.videos.length === 0) {
+                return sock.sendMessage(m.key.remoteJid, { text: "❌ No results found." }, { quoted: m });
+            }
+
+            const video = search.videos[0]; // Take first result
+            const url = video.url;
+            const outFile = path.join(__dirname, `../downloads/${Date.now()}.mp3`);
+
+            // Make sure downloads folder exists
+            if (!fs.existsSync(path.join(__dirname, "../downloads"))) {
+                fs.mkdirSync(path.join(__dirname, "../downloads"));
+            }
+
+            sock.sendMessage(m.key.remoteJid, { text: `🎶 Downloading *${video.title}*...\n⏳ Please wait...` }, { quoted: m });
+
+            // ⚡ Use local yt-dlp binary
+            execFile(
+                path.join(__dirname, "../yt-dlp"),
+                [
+                    "-x",
+                    "--audio-format", "mp3",
+                    "-o", outFile,
+                    url
+                ],
+                (error, stdout, stderr) => {
+                    if (error) {
+                        console.error("yt-dlp error:", error);
+                        return sock.sendMessage(m.key.remoteJid, { text: "❌ Failed to download audio. Try again later." }, { quoted: m });
+                    }
+
+                    // Send audio to WhatsApp
+                    sock.sendMessage(
+                        m.key.remoteJid,
+                        {
+                            audio: { url: outFile },
+                            mimetype: "audio/mpeg",
+                            fileName: `${video.title}.mp3`
+                        },
+                        { quoted: m }
+                    ).then(() => {
+                        fs.unlinkSync(outFile); // delete after sending
+                    });
+                }
+            );
+        } catch (err) {
+            console.error("Song command error:", err
