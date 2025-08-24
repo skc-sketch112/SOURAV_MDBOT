@@ -15,9 +15,7 @@ module.exports = {
             let query = args.join(" ");
             let file = path.join(__dirname, "song.mp3");
 
-            // =============================
-            // 1. Try YouTube first
-            // =============================
+            // ========== 1. YouTube First ==========
             try {
                 const result = await youtubedl(`ytsearch1:${query}`, {
                     dumpSingleJson: true,
@@ -29,12 +27,9 @@ module.exports = {
 
                 if (result?.entries?.length > 0) {
                     const video = result.entries[0];
-                    const title = video.title;
-                    const duration = video.duration;
-                    const thumbnail = video.thumbnail;
                     const url = video.webpage_url;
+                    const title = video.title;
 
-                    // Download mp3
                     await youtubedl(url, {
                         extractAudio: true,
                         audioFormat: "mp3",
@@ -42,62 +37,38 @@ module.exports = {
                         output: file,
                     });
 
-                    // Send info
-                    await sock.sendMessage(m.key.remoteJid, {
-                        image: { url: thumbnail },
-                        caption: `🎶 *${title}*\n⏱ Duration: ${duration}\n🔗 [YouTube Link](${url})`
-                    }, { quoted: m });
-
-                    // Send audio
                     await sock.sendMessage(m.key.remoteJid, {
                         audio: { url: file },
-                        mimetype: "audio/mp4",
-                        ptt: false
+                        mimetype: "audio/mp4"
                     }, { quoted: m });
 
                     fs.unlinkSync(file);
                     return;
                 }
             } catch (ytErr) {
-                console.log("YouTube failed, switching to API…");
+                console.log("❌ YouTube failed, switching…");
             }
 
-            // =============================
-            // 2. Fallback: JioSaavn API
-            // =============================
+            // ========== 2. Stable Fallback (Piyush API) ==========
             try {
-                const res = await axios.get(`https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}`);
-                if (res.data.data && res.data.data.results.length > 0) {
-                    const song = res.data.data.results[0];
-                    const title = song.name;
-                    const artists = song.primaryArtists;
-                    const url = song.downloadUrl[4].link; // 320kbps mp3
-                    const thumbnail = song.image[2].link;
-
+                const api = await axios.get(`https://api-piyush.up.railway.app/song?query=${encodeURIComponent(query)}`);
+                if (api.data.status && api.data.downloadUrl) {
                     await sock.sendMessage(m.key.remoteJid, {
-                        image: { url: thumbnail },
-                        caption: `🎶 *${title}*\n👤 ${artists}\n🔗 Saavn`
-                    }, { quoted: m });
-
-                    await sock.sendMessage(m.key.remoteJid, {
-                        audio: { url },
-                        mimetype: "audio/mp4",
-                        ptt: false
+                        audio: { url: api.data.downloadUrl },
+                        mimetype: "audio/mp4"
                     }, { quoted: m });
                     return;
                 }
-            } catch (sErr) {
-                console.log("Saavn API also failed");
+            } catch (apiErr) {
+                console.log("❌ API fallback failed");
             }
 
-            // =============================
-            // 3. Final fallback: generic API
-            // =============================
-            await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Sorry, all servers failed. Try another song name." }, { quoted: m });
+            // If all fail
+            await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Sorry, servers failed. Try another song or check API." }, { quoted: m });
 
         } catch (e) {
             console.error(e);
-            await sock.sendMessage(m.key.remoteJid, { text: "❌ Error fetching song. Try again later." }, { quoted: m });
+            await sock.sendMessage(m.key.remoteJid, { text: "❌ Error fetching song." }, { quoted: m });
         }
     }
 };
