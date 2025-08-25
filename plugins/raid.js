@@ -55,8 +55,8 @@ module.exports = {
         "Bokachoda final", "Pagol final", "Gadha final", "Chagol final", "Lafanga final", "Khankir chele final", "Haramjada final", "Baje lok final", "Faltu final", "Useless final"
       ];
 
-      if (galiList.length !== 200) {
-        return sock.sendMessage(jid, { text: `⚠️ Internal error: Found ${galiList.length}, expected 200.` }, { quoted: m });
+      if (galiList.length !== 168) {
+        return sock.sendMessage(jid, { text: `⚠️ Internal error: Found ${galiList.length}, expected 168.` }, { quoted: m });
       }
 
       for (let i = 0; i < count; i++) {
