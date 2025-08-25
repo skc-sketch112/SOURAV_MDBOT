@@ -1,47 +1,52 @@
 {
-  "name": "whatsapp-userbot",
-  "version": "1.0.0",
-  "description": "A powerful WhatsApp Userbot using Baileys (hybrid stable version)",
+  "name": "sourav_md",
+  "version": "2.0.0",
+  "description": "🔥 SOURAV_MD - Ultra Powerful WhatsApp Bot using Baileys with music, stickers, scrapers & automation 🔥",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "postinstall": "./render-build.sh"
+    "build": "bash render-build.sh",
+    "postinstall": "bash render-build.sh"
   },
   "dependencies": {
-    "pdf-lib": "^1.17.1",
-    "@whiskeysockets/baileys": "^6.7.5",
+    "@whiskeysockets/baileys": "^6.7.8",
     "axios": "^1.7.2",
     "cheerio": "^1.0.0-rc.12",
-    "express": "^4.18.2",
-    "node-fetch": "^2.6.7",
-    "google-tts-api": "^2.0.2",
-    "pino": "^8.15.0",
+    "express": "^4.19.2",
+    "pdf-lib": "^1.17.1",
+    "pino": "^9.0.0",
     "qrcode-terminal": "^0.12.0",
     "form-data": "^4.0.0",
     "play-dl": "^1.9.7",
     "yt-search": "^2.11.1",
     "ytdl-core": "^4.11.5",
     "soundcloud-downloader": "^0.2.4",
-    "wa-sticker-formatter": "^4.3.2"
+    "wa-sticker-formatter": "^4.4.4",
     "moment": "^2.30.1",
-    "fs-extra": "^11.2.0"
+    "fs-extra": "^11.2.0",
+    "node-fetch": "^3.3.2",
+    "google-tts-api": "^2.0.2",
+    "chalk": "^5.3.0",
+    "fluent-ffmpeg": "^2.1.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
   },
   "engines": {
-    "node": "20.x"
+    "node": ">=20.x"
   },
   "keywords": [
-    "whatsapp",
+    "whatsapp-bot",
+    "sourav_md",
     "baileys",
-    "userbot",
-    "bot",
+    "yt-dlp",
+    "stickers",
+    "music",
+    "automation",
     "scraper",
-    "plugins",
-    "automation"
+    "pro-bot"
   ],
-  "author": "your-name",
+  "author": "SOURAV_MD",
   "license": "MIT"
 }
