@@ -6,8 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js",
-    "render-build": "apt-get update && apt-get install -y imagemagick"
+    "dev": "nodemon index.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "6.7.8",
@@ -29,11 +28,10 @@
     "node-fetch": "2.6.7",
     "google-tts-api": "2.0.2",
     "chalk": "5.3.0",
-    "jimp": "^0.22.12",
+    "jimp": "0.22.12",
     "fluent-ffmpeg": "2.1.2",
     "ffmpeg-static": "5.2.0",
     "dotenv": "16.3.1",
-    "jimp": "0.16.13",
     "lowdb": "2.1.0",
     "human-readable": "0.2.1",
     "node-cache": "5.1.2",
