@@ -1,108 +1,90 @@
-const { exec } = require("child_process");
-const fs = require("fs");
-const path = require("path");
+const fs = require("fs-extra");
+const Jimp = require("jimp");
 
 module.exports = {
-    name: "edit",
-    alias: ["photoedit"],
-    description: "Apply 30+ pro + AI photo effects",
-    category: "tools",
-    usage: ".edit <effect>",
+  name: "photoedit",
+  command: ["photoedit"],
+  description: "Apply 30+ effects to photos",
 
-    async run(m, { sock, args }) {
-        if (!m.quoted || !m.quoted.message.imageMessage) {
-            return m.reply("📸 Reply to an image with `.edit <effect>`");
-        }
-
-        const effect = (args[0] || "").toLowerCase();
-        const extra = args.slice(1).join(" "); // for text input
-
-        const validEffects = [
-            // Old list
-            "grayscale","invert","sepia","blur","brighten","darken","sharpen","resize","flip","flop","rotate",
-            "swirl","implode","edge","charcoal","sketch","paint","solarize","posterize","contrast","equalize",
-            "negate","noise","emboss","vignette","polaroid","wave","oilpaint","mirror","implode2","spread",
-            "pixelate","cartoon","glow","shadow","rotate3d","motionblur",
-            // New AI-like
-            "bgremove","bgwhite","bgcolor","text","meme","frame","circle","collage","glitch","oldphoto","neontext"
-        ];
-
-        if (!validEffects.includes(effect)) {
-            return m.reply("❌ Invalid effect!\n✅ Available: " + validEffects.join(", "));
-        }
-
-        // Paths
-        const buffer = await sock.downloadMediaMessage(m.quoted);
-        const inputPath = path.join(__dirname, "../temp/input.jpg");
-        const outputPath = path.join(__dirname, "../temp/output.png");
-        fs.writeFileSync(inputPath, buffer);
-
-        let command;
-
-        // Basic effects handled here (same as before)...
-
-        // --- AI-like New Features ---
-        switch (effect) {
-            case "bgremove": 
-                command = `convert ${inputPath} -fuzz 20% -transparent white ${outputPath}`;
-                break;
-
-            case "bgwhite":
-                command = `convert ${inputPath} -background white -flatten ${outputPath}`;
-                break;
-
-            case "bgcolor":
-                let color = extra || "blue";
-                command = `convert ${inputPath} -background ${color} -flatten ${outputPath}`;
-                break;
-
-            case "text":
-                if (!extra) return m.reply("⚡ Use: .edit text Your_Text");
-                command = `convert ${inputPath} -gravity south -pointsize 40 -fill white -annotate +0+10 "${extra}" ${outputPath}`;
-                break;
-
-            case "meme":
-                if (!extra.includes("|")) return m.reply("⚡ Use: .edit meme top_text|bottom_text");
-                let [top, bottom] = extra.split("|");
-                command = `convert ${inputPath} -gravity north -pointsize 40 -fill white -stroke black -strokewidth 2 -annotate +0+10 "${top}" -gravity south -annotate +0+10 "${bottom}" ${outputPath}`;
-                break;
-
-            case "frame":
-                command = `convert ${inputPath} -bordercolor black -border 20 ${outputPath}`;
-                break;
-
-            case "circle":
-                command = `convert ${inputPath} -alpha set -background none -vignette 0x0 ${outputPath}`;
-                break;
-
-            case "collage":
-                command = `montage ${inputPath} ${inputPath} ${inputPath} ${inputPath} -tile 2x2 -geometry +2+2 ${outputPath}`;
-                break;
-
-            case "glitch":
-                command = `convert ${inputPath} -channel R -separate r.png; convert ${inputPath} -channel G -separate g.png; convert ${inputPath} -channel B -separate b.png; convert r.png g.png b.png -combine -wave 10x50 ${outputPath}`;
-                break;
-
-            case "oldphoto":
-                command = `convert ${inputPath} -sepia-tone 80% -noise 3 ${outputPath}`;
-                break;
-
-            case "neontext":
-                if (!extra) return m.reply("⚡ Use: .edit neontext Your_Text");
-                command = `convert -size 800x200 xc:black -gravity center -pointsize 70 -fill cyan -annotate 0 "${extra}" -blur 0x8 -fill white -annotate 0 "${extra}" ${outputPath}`;
-                break;
-        }
-
-        // Execute
-        exec(command, async (err) => {
-            if (err) {
-                console.log(err);
-                return m.reply("❌ Error running effect. Check ImageMagick install.");
-            }
-            const out = fs.readFileSync(outputPath);
-            await sock.sendMessage(m.chat, { image: out, caption: `✨ Effect: ${effect}` }, { quoted: m });
-            fs.unlinkSync(inputPath);
-            fs.unlinkSync(outputPath);
+  start: async (sock, msg, args) => {
+    try {
+      if (!msg.message.imageMessage && !msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage) {
+        return sock.sendMessage(msg.key.remoteJid, {
+          text: "❌ Reply to an image with `.photoedit <effect>`",
         });
+      }
+
+      const effect = (args[0] || "").toLowerCase();
+      if (!effect) {
+        return sock.sendMessage(msg.key.remoteJid, {
+          text: "⚡ Available Effects: blur, invert, sepia, greyscale, brightness, contrast, posterize, mirror, flip, rotate, pixelate, normalize, fade, dither, shadow, emboss, sharpen, glow, threshold, opacity, lighten, darken, scale, crop, gaussian, swirl, solarize, hue, saturation, vibrance, noise, fisheye, sketch"
+        });
+      }
+
+      // Download image buffer
+      const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+      let buffer;
+      if (msg.message.imageMessage) {
+        buffer = await sock.downloadMediaMessage(msg);
+      } else if (quoted?.imageMessage) {
+        buffer = await sock.downloadMediaMessage({ message: quoted });
+      }
+
+      const image = await Jimp.read(buffer);
+
+      // === Effects ===
+      switch (effect) {
+        case "blur": image.blur(5); break;
+        case "invert": image.invert(); break;
+        case "sepia": image.sepia(); break;
+        case "greyscale": image.greyscale(); break;
+        case "brightness": image.brightness(0.3); break;
+        case "contrast": image.contrast(0.5); break;
+        case "posterize": image.posterize(5); break;
+        case "mirror": image.mirror(true, false); break;
+        case "flip": image.mirror(false, true); break;
+        case "rotate": image.rotate(90); break;
+        case "pixelate": image.pixelate(10); break;
+        case "normalize": image.normalize(); break;
+        case "fade": image.fade(0.3); break;
+        case "dither": image.dither565(); break;
+        case "shadow": image.contrast(0.3).brightness(-0.2); break;
+        case "emboss": image.convolute([[2,0,0],[0,-1,0],[0,0,-1]]); break;
+        case "sharpen": image.convolute([[0,-1,0],[-1,5,-1],[0,-1,0]]); break;
+        case "glow": image.brightness(0.5).contrast(-0.2); break;
+        case "threshold": image.posterize(2); break;
+        case "opacity": image.opacity(0.5); break;
+        case "lighten": image.brightness(0.5); break;
+        case "darken": image.brightness(-0.5); break;
+        case "scale": image.scale(0.5); break;
+        case "crop": image.crop(0, 0, image.bitmap.width / 2, image.bitmap.height / 2); break;
+        case "gaussian": image.gaussian(3); break;
+        case "solarize": image.invert().brightness(0.2); break;
+        case "hue": image.color([{ apply: "hue", params: [90] }]); break;
+        case "saturation": image.color([{ apply: "saturate", params: [50] }]); break;
+        case "vibrance": image.color([{ apply: "mix", params: ["#ff0000", 30] }]); break;
+        case "noise": image.noise(50); break;
+        case "fisheye": image.scale(1.2).crop(20,20,image.bitmap.width-40,image.bitmap.height-40); break;
+        case "sketch": image.greyscale().posterize(3).contrast(1); break;
+        default:
+          return sock.sendMessage(msg.key.remoteJid, { text: `❌ Effect not found: ${effect}` });
+      }
+
+      // Save file
+      const out = "./temp_edit.jpg";
+      await image.writeAsync(out);
+
+      // Send edited photo
+      await sock.sendMessage(msg.key.remoteJid, {
+        image: { url: out },
+        caption: `✅ Effect *${effect}* applied successfully by SOURAV_MD!`,
+      });
+
+      await fs.unlink(out);
+
+    } catch (e) {
+      console.error("PhotoEdit Error:", e);
+      await sock.sendMessage(msg.key.remoteJid, { text: "⚠️ Error editing photo!" });
     }
+  },
 };
