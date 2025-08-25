@@ -1,25 +1,35 @@
 module.exports = {
   name: "autoraid",
   command: ["autoraid"],
-  description: "Auto raid ON/OFF (Bengali gali per message)",
+  description: "Auto raid a specific user (gali per message)",
   category: "fun",
 
   execute: async (sock, m, args) => {
     const jid = m.key.remoteJid;
 
     global.autoRaid = global.autoRaid || {};
-    const isOn = global.autoRaid[jid] || false;
+    const targetUser = args[0]?.replace(/[@\s]/g, "") + "@s.whatsapp.net";
 
     if (!args[0]) {
-      return sock.sendMessage(jid, { text: `⚡ AutoRaid Status: ${isOn ? "ON" : "OFF"}\n\nUse:\n.autoraid on\n.autoraid off` }, { quoted: m });
+      return sock.sendMessage(
+        jid,
+        { text: `⚡ Usage:\n.autoraid @user → Start auto raid\n.autoraid off → Stop auto raid` },
+        { quoted: m }
+      );
     }
 
-    if (args[0].toLowerCase() === "on") {
-      global.autoRaid[jid] = true;
-      await sock.sendMessage(jid, { text: "🔥 AutoRaid is now *ON* 🔥" }, { quoted: m });
-    } else if (args[0].toLowerCase() === "off") {
-      global.autoRaid[jid] = false;
-      await sock.sendMessage(jid, { text: "🛑 AutoRaid is now *OFF*" }, { quoted: m });
+    if (args[0].toLowerCase() === "off") {
+      global.autoRaid[jid] = null;
+      return sock.sendMessage(jid, { text: "🛑 AutoRaid Stopped!" }, { quoted: m });
+    }
+
+    if (args[0].startsWith("@")) {
+      global.autoRaid[jid] = targetUser;
+      return sock.sendMessage(
+        jid,
+        { text: `🔥 AutoRaid started on @${targetUser.split("@")[0]} 🔥`, mentions: [targetUser] },
+        { quoted: m }
+      );
     }
   }
 };
@@ -29,23 +39,23 @@ const galiList = [
   "Toke chudiye felbo",
   "Pagla goru",
   "Lodu",
-  "Chor dim",
-  "Fata bokachoda",
-  "Tor mathay gobor",
-  "Ladcha",
-  "Faltu manus",
-  "Tor baper juto",
-  "Nali goru",
-  "Bojha bokachoda",
   "Dim pocha",
-  "Gadha",
   "Chhagol",
-  "Bojha kukur",
-  "Olosh pagla",
   "Gobor matha",
+  "Bekar manus",
+  "Tor mathay gobor",
   "Fata futani",
-  "Bekar bokachoda",
-  // 👉 এখানে 168/200 পর্যন্ত manually লিখে দিতে হবে
+  "Nali goru",
+  "Olosh pagla",
+  "Tor baper juto",
+  "Bojha kukur",
+  "Kharap lok",
+  "Tor matha shunno",
+  "Faltu bokachoda",
+  "Chor dim",
+  "Ladcha",
+  "Bojha manus",
+  // 👉 এখানে তোমার চাইলে 168/200 টা manually add করতে হবে
 ];
 
 module.exports.onMessage = async (sock, m) => {
@@ -53,20 +63,23 @@ module.exports.onMessage = async (sock, m) => {
     const jid = m.key.remoteJid;
     const sender = m.key.participant || jid;
 
-    // যদি AutoRaid ON থাকে এবং victim মেসেজ করে
+    // যদি এই গ্রুপে AutoRaid টার্গেট সেট করা থাকে
     if (global.autoRaid && global.autoRaid[jid]) {
-      // Command মেসেজ বাদ দিতে হবে (.autoraid on/off যেন গালি না খায়)
+      const target = global.autoRaid[jid];
+
+      // Command মেসেজ বাদ দিতে হবে (.autoraid যেন নিজে গালি না খায়)
       if (m.message?.conversation?.startsWith(".autoraid")) return;
 
-      // Random gali pick
-      const gali = galiList[Math.floor(Math.random() * galiList.length)];
+      // শুধু target ইউজারের মেসেজে গালি যাবে
+      if (sender === target) {
+        const gali = galiList[Math.floor(Math.random() * galiList.length)];
 
-      // একটাই gali রিপ্লাই হবে victim এর মেসেজে
-      await sock.sendMessage(
-        jid,
-        { text: `@${sender.split("@")[0]} ${gali}`, mentions: [sender] },
-        { quoted: m }
-      );
+        await sock.sendMessage(
+          jid,
+          { text: `@${sender.split("@")[0]} ${gali}`, mentions: [sender] },
+          { quoted: m }
+        );
+      }
     }
   } catch (err) {
     console.error("AutoRaid Error:", err);
