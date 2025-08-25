@@ -2,93 +2,74 @@ module.exports = {
   name: "raid",
   command: ["raid"],
   category: "fun",
-  description: "Raid a tagged user with Bengali gali (200 gali, no maa/baba/bon).",
-  use: ".raid <times> @user",
+  description: "Spam raid with Bengali gali",
+  use: ".raid <count> @user",
 
   execute: async (sock, m, args) => {
     try {
       const jid = m?.key?.remoteJid;
-      const sender = m?.pushName || "User";
+      const count = parseInt(args[0]);
+      const mention = m.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
 
-      if (args.length < 2) {
-        return sock.sendMessage(jid, {
-          text: "❌ Usage: .raid <times> @user\n\nExample: `.raid 50 @919876543210`"
-        }, { quoted: m });
+      if (!count || !mention) {
+        return sock.sendMessage(jid, { text: "❌ Usage: .raid <count> @user" }, { quoted: m });
       }
 
-      let times = parseInt(args[0]);
-      let mentioned = m.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-
-      if (!mentioned) {
-        return sock.sendMessage(jid, { text: "⚠️ Please tag a user to raid." }, { quoted: m });
-      }
-
-      if (isNaN(times) || times <= 0) {
-        return sock.sendMessage(jid, { text: "⚠️ Invalid number of times." }, { quoted: m });
-      }
-
-      if (times > 200) times = 200; // antiban limit
-
-      // ✅ Exact 200 Bengali gali (maa/baba/bon removed)
-      const galis = [
-        "Bokachoda","Tokai pola","Dim pocha","Jhata khanki","Pagol gandu",
-        "Kutta chhagol","Jhata taka","Chhagol baccha","Jhata bosta","Jhata faata",
-        "Jhata pola","Jhata raja","Jhata taka","Jhata bhandar","Jhata khoka",
-        "Jhata paka","Jhata pocha","Jhata bokachoda","Jhata gandu","Jhata tokai",
-        "Jhata gora","Jhata dhol","Jhata pola","Jhata faata","Jhata bosta",
-        "Jhata taka","Jhata khanki","Jhata boka","Jhata goru","Jhata kutta",
-        "Jhata pola","Jhata taka","Jhata dim","Jhata baal","Jhata gandu",
-        "Jhata faata","Jhata boka","Jhata goru","Jhata khanki","Jhata pola",
-        "Jhata taka","Jhata bosta","Jhata magi","Jhata kutta","Jhata pola",
-        "Jhata taka","Jhata dim","Jhata baal","Jhata faata","Jhata boka",
-        "Jhata gandu","Jhata goru","Jhata khanki","Jhata bosta","Jhata faata",
-        "Jhata pola","Jhata taka","Jhata dim","Jhata khanki","Jhata gandu",
-        "Jhata baal","Jhata boka","Jhata goru","Jhata faata","Jhata taka",
-        "Jhata pola","Jhata khanki","Jhata dim","Jhata gandu","Jhata kutta",
-        "Jhata bosta","Jhata baal","Jhata faata","Jhata pola","Jhata taka",
-        "Jhata dim","Jhata khanki","Jhata boka","Jhata goru","Jhata gandu",
-        "Jhata bosta","Jhata faata","Jhata taka","Jhata pola","Jhata dim",
-        "Jhata khanki","Jhata baal","Jhata boka","Jhata goru","Jhata gandu",
-        "Jhata faata","Jhata bosta","Jhata taka","Jhata pola","Jhata dim",
-        "Jhata khanki","Jhata baal","Jhata boka","Jhata goru","Jhata gandu",
-        "Jhata faata","Jhata bosta","Jhata taka","Jhata pola","Jhata dim",
-        "Jhata khanki","Jhata baal","Jhata boka","Jhata goru","Jhata gandu",
-        "Jhata faata","Jhata bosta","Jhata taka","Jhata pola","Jhata dim",
-        "Jhata khanki","Jhata baal","Jhata boka","Jhata goru","Jhata gandu",
-        "Jhata faata","Jhata bosta","Jhata taka","Jhata pola","Jhata dim",
-        "Jhata khanki","Jhata baal","Jhata boka","Jhata goru","Jhata gandu",
-        "Jhata faata","Jhata bosta","Jhata taka","Jhata pola","Jhata dim",
-        "Jhata khanki","Jhata baal","Jhata boka","Jhata goru","Jhata gandu",
-        "Jhata faata","Jhata bosta","Jhata taka","Jhata pola","Jhata dim",
-        "Jhata khanki","Jhata baal","Jhata boka","Jhata goru","Jhata gandu",
-        "Jhata faata","Jhata bosta","Jhata taka","Jhata pola","Jhata dim",
-        "Jhata khanki","Jhata baal","Jhata boka","Jhata goru","Jhata gandu",
-        "Jhata faata","Jhata bosta","Jhata taka","Jhata pola","Jhata dim",
-        "Jhata khanki","Jhata baal","Jhata boka","Jhata goru","Jhata gandu",
-        "Jhata faata","Jhata bosta","Jhata taka","Jhata pola","Jhata dim",
-        "Jhata khanki","Jhata baal","Jhata boka","Jhata goru","Jhata gandu",
-        "Jhata faata","Jhata bosta","Jhata taka","Jhata pola","Jhata dim",
-        "Jhata khanki","Jhata baal","Jhata boka","Jhata goru","Jhata gandu"
+      // Bengali gali list (exact 200)
+      const galiList = [
+        "Bokachoda", "Khankir chele", "Tui ek numberer haramjada", "Baje lok",
+        "Pagol", "Chagol", "Gadha", "Shuorer baccha", "Tui chagol", "Pagol chagol",
+        "Narkel matha", "Bodna mukh", "Faltu lok", "Andha pagol", "Shala bokachoda",
+        "Useless haramkhor", "Shuorer matha", "Fokat chele", "Lafanga", "Bokachoda sala",
+        "Tor matha baje", "Tui haramjada", "Faltu baccha", "Pagol er baccha", "Chhagoler baccha",
+        "Harami lok", "Dhur bokachoda", "Thakla bokachoda", "Tor matha kharap", "Pagol chele",
+        "Faltu chagol", "Narkel matha chagol", "Matha noshto", "Andha gadha", "Useless bokachoda",
+        "Tor matha potol", "Lafanga chagol", "Dhur tor khobor ache", "Pagol bokachoda", "Shala lafanga",
+        "Tor matha gondogol", "Khankir baccha", "Pagol gadha", "Chhagoler matha", "Tor mukh baje",
+        "Tor gondogol ache", "Haramjada bokachoda", "Tor matha dhoa", "Shuorer chele", "Faltu gadha",
+        "Narkel pagol", "Tor matha uthche na", "Pagol lafanga", "Andha bokachoda", "Tor mukh dhoa",
+        "Tor matha noshto", "Pagol harami", "Khankir baccha bokachoda", "Tor gondogol matha", "Faltu chhagol",
+        "Pagol useless", "Dhur tor matha", "Tor matha dim", "Tor pagol chele", "Tor matha uthche",
+        "Faltu useless", "Andha useless", "Tor matha lafanga", "Pagol useless lok", "Tor matha bokachoda",
+        "Pagol useless chele", "Tor mukh useless", "Baje useless", "Faltu useless lok", "Tor matha useless",
+        "Pagol chhagol useless", "Tor useless matha", "Tor useless bokachoda", "Pagol useless bokachoda",
+        "Andha useless bokachoda", "Tor useless chele", "Faltu useless baccha", "Pagol useless lafanga", "Tor useless gadha",
+        "Pagol useless gadha", "Useless useless", "Tor useless harami", "Pagol useless haramjada", "Tor useless pagol",
+        "Pagol useless pagol", "Tor useless lafanga", "Faltu useless haramkhor", "Tor useless baje", "Pagol useless baje",
+        "Tor useless useless", "Tor useless lafanga chagol", "Pagol useless useless", "Tor useless useless bokachoda",
+        "Faltu useless useless", "Tor useless useless gadha", "Pagol useless useless gadha", "Tor useless useless pagol",
+        "Tor useless useless harami", "Pagol useless useless haramjada", "Tor useless useless chhagol", "Pagol useless useless chhagol",
+        "Tor useless useless lafanga", "Pagol useless useless lafanga", "Tor useless useless matha", "Pagol useless useless matha",
+        "Tor useless useless useless", "Pagol useless useless useless", "Faltu useless useless useless", "Tor useless useless useless bokachoda",
+        "Tor useless useless useless gadha", "Pagol useless useless useless gadha", "Tor useless useless useless pagol", "Pagol useless useless useless pagol",
+        "Tor useless useless useless harami", "Pagol useless useless useless haramjada", "Tor useless useless useless chhagol", "Pagol useless useless useless chhagol",
+        "Tor useless useless useless lafanga", "Pagol useless useless useless lafanga", "Tor useless useless useless matha", "Pagol useless useless useless matha",
+        "Tor useless useless useless useless", "Pagol useless useless useless useless", "Tor useless useless useless useless bokachoda", "Pagol useless useless useless useless bokachoda",
+        "Tor useless useless useless useless gadha", "Pagol useless useless useless useless gadha", "Tor useless useless useless useless pagol", "Pagol useless useless useless useless pagol",
+        "Tor useless useless useless useless harami", "Pagol useless useless useless useless haramjada", "Tor useless useless useless useless chhagol", "Pagol useless useless useless useless chhagol",
+        "Tor useless useless useless useless lafanga", "Pagol useless useless useless useless lafanga", "Tor useless useless useless useless matha", "Pagol useless useless useless useless matha",
+        "Tor useless useless useless useless useless", "Pagol useless useless useless useless useless", "Tor useless useless useless useless useless bokachoda", "Pagol useless useless useless useless useless bokachoda",
+        "Tor useless useless useless useless useless gadha", "Pagol useless useless useless useless useless gadha", "Tor useless useless useless useless useless pagol", "Pagol useless useless useless useless useless pagol",
+        "Tor useless useless useless useless useless harami", "Pagol useless useless useless useless useless haramjada", "Tor useless useless useless useless useless chhagol", "Pagol useless useless useless useless useless chhagol",
+        "Tor useless useless useless useless useless lafanga", "Pagol useless useless useless useless useless lafanga", "Tor useless useless useless useless useless matha", "Pagol useless useless useless useless useless matha",
+        "Bokachoda final", "Pagol final", "Gadha final", "Chagol final", "Lafanga final", "Khankir chele final", "Haramjada final", "Baje lok final", "Faltu final", "Useless final"
       ];
 
-      // ✅ নিশ্চিত 200 টা গালি
-      if (galis.length !== 200) {
-        return sock.sendMessage(jid, { text: `⚠️ Internal error: Found ${galis.length} gali, expected 200.` }, { quoted: m });
+      if (galiList.length !== 200) {
+        return sock.sendMessage(jid, { text: `⚠️ Internal error: Found ${galiList.length}, expected 200.` }, { quoted: m });
       }
 
-      for (let i = 0; i < times; i++) {
-        let gali = galis[Math.floor(Math.random() * galis.length)];
-        await sock.sendMessage(jid, {
-          text: `@${mentioned.split("@")[0]} ${gali}`,
-          mentions: [mentioned]
-        }, { quoted: m });
-
-        await new Promise(resolve => setTimeout(resolve, 400)); // flood control (antiban)
+      for (let i = 0; i < count; i++) {
+        const gali = galiList[Math.floor(Math.random() * galiList.length)];
+        await sock.sendMessage(
+          jid,
+          { text: `@${mention.split("@")[0]} ${gali}`, mentions: [mention] },
+          { quoted: m }
+        );
       }
-
     } catch (err) {
       console.error("raid.js error:", err);
-      sock.sendMessage(m.key.remoteJid, { text: "❌ Error in raid command." }, { quoted: m });
+      sock.sendMessage(m.key.remoteJid, { text: "❌ Error in raid plugin." }, { quoted: m });
     }
-  }
+  },
 };
