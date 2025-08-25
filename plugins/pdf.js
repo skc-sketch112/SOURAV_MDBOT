@@ -1,10 +1,11 @@
 // plugins/pdf.js
-const fs = require("fs");
-const path = require("path");
 const { PDFDocument, rgb, StandardFonts } = require("pdf-lib");
 const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
 const axios = require("axios");
 
+/**
+ * Helper: download media buffer
+ */
 async function downloadMediaMessage(message, type = "image") {
   const stream = await downloadContentFromMessage(message, type);
   let buffer = Buffer.from([]);
@@ -14,9 +15,26 @@ async function downloadMediaMessage(message, type = "image") {
   return buffer;
 }
 
+/**
+ * Helper: text wrap for PDF
+ */
+function wrapText(text, maxLineLength = 80) {
+  const words = text.split(" ");
+  let lines = [], line = "";
+  for (const word of words) {
+    if ((line + word).length > maxLineLength) {
+      lines.push(line.trim());
+      line = "";
+    }
+    line += word + " ";
+  }
+  if (line) lines.push(line.trim());
+  return lines;
+}
+
 module.exports = {
   name: "pdf",
-  alias: ["pdfimg", "pdfdoc","pdftext"],
+  alias: ["pdfimg", "pdfdoc", "pdftext"],
   category: "tools",
   desc: "Create PDF from text or images",
   async execute(sock, msg, args) {
@@ -24,6 +42,7 @@ module.exports = {
       const text = args.join(" ");
       const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
 
+      // নতুন PDF বানাও
       const pdfDoc = await PDFDocument.create();
 
       // === Case 1: Images to PDF ===
@@ -52,30 +71,33 @@ module.exports = {
 
       } else {
         // === Case 2: Text to PDF ===
-        const page = pdfDoc.addPage([595, 842]); // A4
+        const page = pdfDoc.addPage([595, 842]); // A4 size
         const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-        page.drawText(text || "⚠️ No text provided!", {
-          x: 50,
-          y: 750,
-          size: 20,
-          font,
-          color: rgb(0, 0, 0),
-          maxWidth: 500,
-        });
+
+        const lines = wrapText(text || "⚠️ No text provided!", 80);
+        let y = 780;
+
+        for (const line of lines) {
+          page.drawText(line, {
+            x: 50,
+            y,
+            size: 18,
+            font,
+            color: rgb(0, 0, 0),
+          });
+          y -= 24; // gap between lines
+        }
       }
 
+      // === Save & Send ===
       const pdfBytes = await pdfDoc.save();
-      const filePath = path.join(__dirname, "../temp/output.pdf");
-      fs.writeFileSync(filePath, pdfBytes);
 
       await sock.sendMessage(msg.key.remoteJid, {
-        document: { url: filePath },
+        document: Buffer.from(pdfBytes),
         mimetype: "application/pdf",
-        fileName: "output.pdf",
-        caption: "✅ Here’s your PDF, made by SOURAV_MD Bot!"
+        fileName: "SOURAV_MD.pdf",
+        caption: "✅ Here’s your PDF, made by *SOURAV_MD Bot* 🚀"
       }, { quoted: msg });
-
-      fs.unlinkSync(filePath);
 
     } catch (err) {
       console.error("❌ PDF Plugin Error:", err);
