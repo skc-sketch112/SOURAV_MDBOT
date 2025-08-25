@@ -3,23 +3,19 @@ set -e
 
 echo "🚀 Starting Render Build for SOURAV_MD..."
 
-# Clean install deps
-echo "📦 Installing dependencies..."
-npm install --force
+# Use only production deps (skip devDeps to save time)
+npm install --production --force
 
-# Ensure native modules rebuild correctly
 echo "🔧 Rebuilding native modules..."
 npm rebuild --force || true
 
-# Make sure ffmpeg is linked properly
-echo "🎬 Linking ffmpeg..."
-if [ -f ./node_modules/ffmpeg-static/bin/ffmpeg ]; then
-  chmod +x ./node_modules/ffmpeg-static/bin/ffmpeg
+echo "🎬 Ensuring ffmpeg works..."
+if [ -f ./node_modules/ffmpeg-static/ffmpeg ]; then
+  chmod +x ./node_modules/ffmpeg-static/ffmpeg
 fi
 
-# Prepare lowdb and other JSON/db folders
-echo "🗂️ Preparing database folder..."
+echo "🗂️ Preparing database..."
 mkdir -p ./database
 touch ./database/db.json
 
-echo "✅ Build finished successfully!"
+echo "✅ Build finished!"
