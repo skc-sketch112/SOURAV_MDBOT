@@ -1,63 +1,69 @@
-const { writeExif } = require("@whiskeysockets/baileys"); // built-in
-const fs = require("fs");
-const path = require("path");
+const { Sticker, StickerTypes } = require("wa-sticker-formatter");
+
+function randomPackName() {
+    const packs = [
+        "🔥 SOURAV_MD Pack",
+        "💎 SOURAV_MD Stickers",
+        "⚡ Made by SOURAV_MD",
+        "✨ SOURAV_MD Creations",
+        "👑 SOURAV_MD Exclusive"
+    ];
+    return packs[Math.floor(Math.random() * packs.length)];
+}
 
 module.exports = {
-  name: "sticker",
-  command: ["sticker", "s", "st"],
-  execute: async (sock, m, args) => {
-    try {
-      // 📸 Check if message has an image or video
-      let quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-      let type = quoted
-        ? Object.keys(quoted)[0]
-        : Object.keys(m.message)[0];
+    name: "sticker",
+    command: ["sticker", "s", "st"],
+    execute: async (sock, m, args) => {
+        try {
+            // Check if message has media or quoted media
+            const quoted = m.message?.imageMessage || m.message?.videoMessage ||
+                m.quoted?.message?.imageMessage || m.quoted?.message?.videoMessage;
 
-      if (!["imageMessage", "videoMessage", "stickerMessage"].includes(type)) {
-        return sock.sendMessage(m.key.remoteJid, {
-          text: "❌ Reply to an *image/video* with `.sticker`",
-        }, { quoted: m });
-      }
+            if (!quoted) {
+                return sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: "❌ Send or reply to an *image/video (max 10s)* with `.sticker` to create a sticker!" },
+                    { quoted: m }
+                );
+            }
 
-      // 📥 Download media
-      const mediaPath = path.join(__dirname, "../downloads", `${Date.now()}`);
-      if (!fs.existsSync(path.join(__dirname, "../downloads"))) {
-        fs.mkdirSync(path.join(__dirname, "../downloads"));
-      }
+            // Detect type
+            const buffer = await sock.downloadMediaMessage(
+                m.message.imageMessage ? m :
+                m.message.videoMessage ? m :
+                m.quoted
+            );
 
-      const stream = await sock.downloadAndSaveMediaMessage(
-        quoted ? { message: quoted } : m,
-        mediaPath
-      );
+            if (!buffer) {
+                return sock.sendMessage(
+                    m.key.remoteJid,
+                    { text: "❌ Failed to download media. Try again." },
+                    { quoted: m }
+                );
+            }
 
-      // 🖼 Sticker metadata
-      const packInfo = {
-        packname: "SOURAV_MD",
-        author: "BOT",
-      };
+            // Build sticker
+            const sticker = new Sticker(buffer, {
+                pack: randomPackName(),  // Random pack name each time
+                author: "SOURAV_MD 💎", // Credit
+                type: StickerTypes.FULL, // FULL / CROP / CIRCLE
+                quality: 85,             // higher quality
+                categories: ["🤖", "🔥", "🎭"], // WhatsApp categories
+            });
 
-      // ✨ Convert to sticker
-      const stickerPath = `${mediaPath}.webp`;
-      await writeExif(stream, packInfo, stickerPath);
+            const stickerBuffer = await sticker.build();
 
-      // 📤 Send sticker
-      await sock.sendMessage(
-        m.key.remoteJid,
-        { sticker: { url: stickerPath } },
-        { quoted: m }
-      );
+            // Send sticker
+            await sock.sendMessage(m.key.remoteJid, { sticker: stickerBuffer }, { quoted: m });
 
-      // 🗑 Clean temp files
-      fs.unlinkSync(stream);
-      fs.unlinkSync(stickerPath);
-
-    } catch (err) {
-      console.error("Sticker error:", err);
-      await sock.sendMessage(
-        m.key.remoteJid,
-        { text: "❌ Failed to make sticker. Try again." },
-        { quoted: m }
-      );
+        } catch (err) {
+            console.error("Sticker command error:", err);
+            sock.sendMessage(
+                m.key.remoteJid,
+                { text: "⚠️ Oops! Sticker creation failed. Try again with a clear image/video." },
+                { quoted: m }
+            );
+        }
     }
-  },
 };
