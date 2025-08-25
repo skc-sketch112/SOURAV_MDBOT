@@ -3,7 +3,7 @@ set -e
 
 echo "🚀 Starting Render Build for SOURAV_MD..."
 
-# Use only production deps (skip devDeps to save time)
+# Install only production dependencies (skip devDeps to save time)
 npm install --production --force
 
 echo "🔧 Rebuilding native modules..."
