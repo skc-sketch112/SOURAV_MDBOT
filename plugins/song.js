@@ -17,46 +17,41 @@ module.exports = {
 
         const query = args.join(" ");
         try {
-            // 🔍 Search YouTube for the song
+            // 🔍 Search YouTube
             const search = await yts(query);
             if (!search.videos || search.videos.length === 0) {
-                return sock.sendMessage(
-                    m.key.remoteJid,
-                    { text: "❌ No results found." },
-                    { quoted: m }
-                );
+                return sock.sendMessage(m.key.remoteJid, { text: "❌ No results found." }, { quoted: m });
             }
 
-            const video = search.videos[0]; // Take first result
+            const video = search.videos[0]; // best match
             const url = video.url;
+
+            // Create downloads folder if not exists
             const downloadsDir = path.join(__dirname, "../downloads");
+            if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir);
+
             const outFile = path.join(downloadsDir, `${Date.now()}.mp3`);
 
-            // ✅ Ensure downloads folder exists
-            if (!fs.existsSync(downloadsDir)) {
-                fs.mkdirSync(downloadsDir, { recursive: true });
-            }
-
+            // Notify user
             await sock.sendMessage(
                 m.key.remoteJid,
                 { text: `🎶 Downloading *${video.title}*...\n⏳ Please wait...` },
                 { quoted: m }
             );
 
-            // ⚡ Use local yt-dlp binary from render-build.sh
-            const ytdlpPath = path.join(__dirname, "../yt-dlp");
-
+            // ⚡ Use yt-dlp binary from project root
             execFile(
-                ytdlpPath,
+                path.join(__dirname, "../yt-dlp"),
                 [
                     "-x",
                     "--audio-format", "mp3",
+                    "--audio-quality", "0", // best quality
                     "-o", outFile,
                     url
                 ],
-                (error, stdout, stderr) => {
+                async (error, stdout, stderr) => {
                     if (error) {
-                        console.error("yt-dlp error:", error);
+                        console.error("yt-dlp error:", error, stderr);
                         return sock.sendMessage(
                             m.key.remoteJid,
                             { text: "❌ Failed to download audio. Try again later." },
@@ -64,8 +59,8 @@ module.exports = {
                         );
                     }
 
-                    // ✅ Send audio to WhatsApp
-                    sock.sendMessage(
+                    // ✅ Send song to WhatsApp
+                    await sock.sendMessage(
                         m.key.remoteJid,
                         {
                             audio: { url: outFile },
@@ -73,21 +68,15 @@ module.exports = {
                             fileName: `${video.title}.mp3`
                         },
                         { quoted: m }
-                    ).then(() => {
-                        // Clean up temp file after sending
-                        fs.unlink(outFile, (err) => {
-                            if (err) console.error("Cleanup error:", err);
-                        });
-                    });
+                    );
+
+                    // Clean up
+                    fs.unlinkSync(outFile);
                 }
             );
         } catch (err) {
             console.error("Song command error:", err);
-            return sock.sendMessage(
-                m.key.remoteJid,
-                { text: "⚠️ An unexpected error occurred while processing your request." },
-                { quoted: m }
-            );
+            sock.sendMessage(m.key.remoteJid, { text: "❌ Unexpected error occurred." }, { quoted: m });
         }
     }
-};
+};                    
