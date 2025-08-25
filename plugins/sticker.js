@@ -1,5 +1,4 @@
-const { Sticker, createSticker, StickerTypes } = require("wa-sticker-formatter");
-const { default: axios } = require("axios");
+const { writeExif } = require("@whiskeysockets/baileys"); // built-in
 const fs = require("fs");
 const path = require("path");
 
@@ -8,51 +7,55 @@ module.exports = {
   command: ["sticker", "s", "st"],
   execute: async (sock, m, args) => {
     try {
-      let buffer;
+      // 📸 Check if message has an image or video
+      let quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+      let type = quoted
+        ? Object.keys(quoted)[0]
+        : Object.keys(m.message)[0];
 
-      // Case 1: User replied to an image/video
-      if (m.message?.imageMessage || m.message?.videoMessage) {
-        const msgType = m.message.imageMessage ? "image" : "video";
-        const file = await sock.downloadMediaMessage(m);
-
-        if (!file) {
-          return sock.sendMessage(m.key.remoteJid, { text: "❌ Failed to download media." }, { quoted: m });
-        }
-        buffer = file;
+      if (!["imageMessage", "videoMessage", "stickerMessage"].includes(type)) {
+        return sock.sendMessage(m.key.remoteJid, {
+          text: "❌ Reply to an *image/video* with `.sticker`",
+        }, { quoted: m });
       }
 
-      // Case 2: User provided a direct URL
-      else if (args[0] && args[0].startsWith("http")) {
-        const url = args[0];
-        const res = await axios.get(url, { responseType: "arraybuffer" });
-        buffer = Buffer.from(res.data, "binary");
+      // 📥 Download media
+      const mediaPath = path.join(__dirname, "../downloads", `${Date.now()}`);
+      if (!fs.existsSync(path.join(__dirname, "../downloads"))) {
+        fs.mkdirSync(path.join(__dirname, "../downloads"));
       }
 
-      // Nothing provided
-      else {
-        return sock.sendMessage(m.key.remoteJid, { text: "⚠️ Reply to an *image/video* or send a *direct image URL* with `.sticker`" }, { quoted: m });
-      }
+      const stream = await sock.downloadAndSaveMediaMessage(
+        quoted ? { message: quoted } : m,
+        mediaPath
+      );
 
-      // Create sticker
-      const sticker = new Sticker(buffer, {
-        pack: "SOURAV_MD Pack",   // 👑 Pack name
-        author: "SOURAV_MD",      // 👑 Your name
-        type: StickerTypes.FULL,  // FULL / CROP / CIRCLE
-        quality: 80,              // Sticker quality (max 100)
-      });
+      // 🖼 Sticker metadata
+      const packInfo = {
+        packname: "SOURAV_MD",
+        author: "BOT",
+      };
 
-      const stickerBuffer = await sticker.build();
+      // ✨ Convert to sticker
+      const stickerPath = `${mediaPath}.webp`;
+      await writeExif(stream, packInfo, stickerPath);
 
+      // 📤 Send sticker
       await sock.sendMessage(
         m.key.remoteJid,
-        { sticker: stickerBuffer },
+        { sticker: { url: stickerPath } },
         { quoted: m }
       );
+
+      // 🗑 Clean temp files
+      fs.unlinkSync(stream);
+      fs.unlinkSync(stickerPath);
+
     } catch (err) {
-      console.error("Sticker.js error:", err);
+      console.error("Sticker error:", err);
       await sock.sendMessage(
         m.key.remoteJid,
-        { text: "❌ Error creating sticker. Try with a valid image/video." },
+        { text: "❌ Failed to make sticker. Try again." },
         { quoted: m }
       );
     }
