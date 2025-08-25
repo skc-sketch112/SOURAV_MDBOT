@@ -3,6 +3,7 @@
   "version": "2.0.0",
   "description": "🔥 SOURAV_MD - Ultra Powerful WhatsApp Bot using Baileys with music, stickers, scrapers & automation 🔥",
   "main": "index.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
@@ -28,10 +29,16 @@
     "google-tts-api": "2.0.2",
     "chalk": "5.3.0",
     "fluent-ffmpeg": "2.1.2",
-    "ffmpeg-static": "5.2.0"
+    "ffmpeg-static": "5.2.0",
+    "dotenv": "16.3.1",
+    "jimp": "0.16.13",
+    "lowdb": "2.1.0",
+    "human-readable": "0.2.1",
+    "node-cache": "5.1.2"
   },
   "devDependencies": {
-    "nodemon": "3.1.0"
+    "nodemon": "3.1.0",
+    "pm2": "5.2.0"
   },
   "engines": {
     "node": "20.x"
