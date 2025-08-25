@@ -6,7 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "render-build": "apt-get update && apt-get install -y imagemagick"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "6.7.8",
