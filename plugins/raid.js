@@ -17,17 +17,17 @@ module.exports = {
 
       // Bengali gali list (exact 200)
       const galiList = [
-        "Bokachoda", "Khankir chele", "Tui ek numberer haramjada", "Baje lok",
-        "Pagol", "Chagol", "Gadha", "Shuorer baccha", "Tui chagol", "Pagol chagol",
-        "Narkel matha", "Bodna mukh", "Faltu lok", "Andha pagol", "Shala bokachoda",
-        "Useless haramkhor", "Shuorer matha", "Fokat chele", "Lafanga", "Bokachoda sala",
-        "Tor matha baje", "Tui haramjada", "Faltu baccha", "Pagol er baccha", "Chhagoler baccha",
-        "Harami lok", "Dhur bokachoda", "Thakla bokachoda", "Tor matha kharap", "Pagol chele",
+        "Bokachoda", "Khankir chele", "Tui ek numberer haramjada", "khanki magi",
+        "Pagolchoda", "Chagolchoda", "Gadhachudi", "Shuorer baccha", "Tui chagolchudi", "Pagol chagol er gud",
+        "Narkel matha r bichi", "Bodna mukh r bal", "Faltu lokchoda", "Andha pagolgudmarani", "Shala bokachoda",
+        "gudkhor haramkhor", "Shuorer matha", "Fokat chele r dhon chosh", "Lafanga", "Bokachoda sala r kuttar maal fhele chudbo",
+        "Tor matha baje", "Tui haramjada gud gud gud khoi", "Faltu bacchachoda", "Pagol er baccha", "Chhagoler bacchachudi",
+        "Harami lok", "Dhur bokachoda", "Thakla bokachoda", "Tor matha kharap mathai bichi ache", "Pagolchoda chele",
         "Faltu chagol", "Narkel matha chagol", "Matha noshto", "Andha gadha", "Useless bokachoda",
-        "Tor matha potol", "Lafanga chagol", "Dhur tor khobor ache", "Pagol bokachoda", "Shala lafanga",
+        "Tor matha potol gud r dhon", "Lafanga chagol", "Dhur tor khobor ache gud der tolai", "Pagol bokachoda", "Shala lafanga",
         "Tor matha gondogol", "Khankir baccha", "Pagol gadha", "Chhagoler matha", "Tor mukh baje",
-        "Tor gondogol ache", "Haramjada bokachoda", "Tor matha dhoa", "Shuorer chele", "Faltu gadha",
-        "Narkel pagol", "Tor matha uthche na", "Pagol lafanga", "Andha bokachoda", "Tor mukh dhoa",
+        "Tor gare gondogol ache", "Haramjada bokachoda", "Tor matha dhoa", "lanto chele", "Faltu gadha",
+        "Narkel pagol", "Tor matha uthche na nicher bichii", "Pagol lafanga", "Andha bokachoda", "Tor mukh dhoa amr maal",
         "Tor matha noshto", "Pagol harami", "Khankir baccha bokachoda", "Tor gondogol matha", "Faltu chhagol",
         "Pagol useless", "Dhur tor matha", "Tor matha dim", "Tor pagol chele", "Tor matha uthche",
         "Faltu useless", "Andha useless", "Tor matha lafanga", "Pagol useless lok", "Tor matha bokachoda",
@@ -52,7 +52,7 @@ module.exports = {
         "Tor useless useless useless useless useless gadha", "Pagol useless useless useless useless useless gadha", "Tor useless useless useless useless useless pagol", "Pagol useless useless useless useless useless pagol",
         "Tor useless useless useless useless useless harami", "Pagol useless useless useless useless useless haramjada", "Tor useless useless useless useless useless chhagol", "Pagol useless useless useless useless useless chhagol",
         "Tor useless useless useless useless useless lafanga", "Pagol useless useless useless useless useless lafanga", "Tor useless useless useless useless useless matha", "Pagol useless useless useless useless useless matha",
-        "Bokachoda final", "Pagol final", "Gadha final", "Chagol final", "Lafanga final", "Khankir chele final", "Haramjada final", "Baje lok final", "Faltu final", "Useless final"
+        "Bokachoda", "Pagol er dudh", "Gadha modu", "Chagol er dhon", "Lafanga gudirbeta", "Khankirchele", "Haramjada ", "Baje lok gud chud pud", "Faltu choda", "tor tits khule criket khelbo"
       ];
 
       if (galiList.length !== 168) {
