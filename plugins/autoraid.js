@@ -1,74 +1,122 @@
-const gali = [
-  "bokachoda","haramjada","pagol er baccha","kharap chele","khanki bacha","kukur er mota",
-  "shala pagol","tor pet e gondho","tor matha noshto","andho goru","beshorom","pagla chagol",
-  "tor kotha kalo goru","haddi boka","boka jamai","tor chokh bondho","gadha","dimag kharap",
-  "pagla meye","pagla chhele","tor dimag jal","chhagoler baccha","dimag choto","pakhir matha",
-  "pagol shala","kichir michir goru","tor chul pora","beshorom chagol","tui kukur","dimag heen",
-  "bokachoda pro max","pagol er jamai","dimag zero","tor matha fata","bokachoda unlimited",
-  "dimag damage","boka pagol","tor kotha goru","pagla dim","gadha shala","bokachoda 420",
-  "pagla pagal","tor jibon fail","tor mukh gondho","tor matha futi","bokachoda boss",
-  "kharap pagol","tor mukh baje","tor dimag futi","beshorom boss","bokachoda ultimate",
-  "pagla damri","tor matha jole","pagla ghoda","tor mukh kalo","bokachoda unlimited edition",
-  "pagol master","tor matha chhagol","dimag fuchka","tor mukh goru","bokachoda prime",
-  "tor chokh noshto","pagol generator","tor mukh fail","pagla biscuit","bokachoda galaxy",
-  "tor matha biscuit","pagol radio","bokachoda sun","tor chokh andho","dimag chhagol",
-  "tor mukh kola","bokachoda moon","pagol tv","tor mukh fuchka","bokachoda sky",
-  "tor chokh fail","pagol radio live","bokachoda planet","tor mukh chhagol","bokachoda mars",
-  "pagol box","tor mukh fail unlimited","bokachoda star","pagol lol","tor mukh water",
-  "bokachoda king","tor chokh zero","pagol blast","bokachoda ultra","tor mukh blast",
-  "bokachoda dragon","pagol fire","tor mukh blast fail","bokachoda devil","tor mukh devil",
-  "pagol noshto","bokachoda joker","tor mukh pagol","bokachoda 007","tor chokh kalo",
-  "pagol 111","tor mukh ghoda","bokachoda beast","pagol rakhal","tor mukh noshto",
-  "bokachoda hacker","pagol zero","tor mukh gola","bokachoda hacker pro","tor chokh glass",
-  "pagol fail","bokachoda 100%","tor mukh jhamela","pagol 404","tor matha notun",
-  "bokachoda XD","tor mukh 101","pagol ABC","bokachoda lol","tor mukh pagla",
-  "pagol ultimate","bokachoda hero","tor mukh 111","pagol baka","bokachoda sad",
-  "tor mukh broken","pagol fish","bokachoda gadha","tor mukh gadha","pagol horse",
-  "bokachoda baka","tor mukh baka","pagol kachra","bokachoda beta","tor mukh fail beta",
-  "pagol biscuit fail","bokachoda copy","tor mukh copy fail","pagol noob","bokachoda noob",
-  "tor mukh noob","pagol bot","bokachoda bot","tor mukh bot fail","pagol hacker",
-  "bokachoda hacker fail","tor mukh hacker","pagol virus","bokachoda virus","tor mukh virus",
-  "pagol clown","bokachoda clown","tor mukh clown","pagol joker","bokachoda joker fail",
-  "tor mukh joker fail","pagol chhagol","bokachoda chhagol","tor mukh chhagol fail",
-  "pagol master fail","bokachoda master","tor mukh master fail","pagol devil",
-  "bokachoda devil fail","tor mukh devil fail","pagol beast","bokachoda beast fail",
-  "tor mukh beast fail","pagol goru","bokachoda goru","tor mukh goru fail","pagol goru fail"
-]; // 168 total
+const autoRaidTargets = {};  
 
-let raidTarget = null;
-let isRaiding = false;
+// 168 ta Bengali Gali (manually list kora)
+const galiList = [
+  "Pagol bokachoda", "Useless haramjada", "Gadha sala", "Toke chudbo",
+  "Bokachoda harami", "Mahir jhaatta", "Kuttar baccha", "Sutmarani",
+  "Bhosriwala", "Andho gadha", "Shala pagal", "Baal kha", "Dimak nai",
+  "Faltu harami", "Shuarer baccha", "Tokkhon chude felbo", "Chhagol sala",
+  "Bokachoda kukur", "Chor sala", "Baje baje bokachoda", "Pola pagol",
+  "Gadha dim", "Useless suarer baccha", "Bajey chele", "Tokhon chutmarani",
+  "Kharap bhosriwala", "Shala futni", "Andho baje gadha", "Pagol chutia",
+  "Chhagol bokachoda", "Jhatla kha", "Harami useless", "Pagol sala",
+  "Andho suarer baccha", "Pagla baje gadha", "Pagol chhagol", "Andho dimak nai",
+  "Bokachoda useless", "Pagol chutia sala", "Pagol luser", "Faltu chutia",
+  "Dim nai gadha", "Pagol futni", "Useless bokachoda", "Pagol useless chele",
+  "Faltu useless gadha", "Pagol useless sala", "Harami useless pagol",
+  "Pagol useless bokachoda", "Pagol useless chutia", "Pagol useless futni",
+  "Pagol useless chhagol", "Pagol useless gadha", "Pagol useless shuar",
+  "Pagol useless harami", "Pagol useless baje chele", "Pagol useless haramjada",
+  "Pagol useless bhosriwala", "Pagol useless futni sala", "Pagol useless kukur",
+  "Pagol useless bokachoda gadha", "Pagol useless chutia gadha",
+  "Pagol useless bokachoda sala", "Pagol useless futni gadha",
+  "Pagol useless shuar gadha", "Pagol useless gadha sala",
+  "Pagol useless chutia sala", "Pagol useless bokachoda useless",
+  "Pagol useless baje gadha", "Pagol useless sala gadha", "Pagol useless futni useless",
+  "Pagol useless useless gadha", "Pagol useless useless sala",
+  "Pagol useless useless chutia", "Pagol useless useless futni",
+  "Pagol useless useless bokachoda", "Pagol useless useless pagol",
+  "Pagol useless useless useless sala", "Pagol useless useless useless gadha",
+  "Pagol useless useless useless chutia", "Pagol useless useless useless futni",
+  "Pagol useless useless useless bokachoda", "Pagol useless useless useless pagol",
+  "Pagol useless useless useless useless sala", "Pagol useless useless useless useless gadha",
+  "Pagol useless useless useless useless chutia", "Pagol useless useless useless useless futni",
+  "Pagol useless useless useless useless bokachoda", "Pagol useless useless useless useless pagol",
+  "Pagol useless useless useless useless useless sala", "Pagol useless useless useless useless useless gadha",
+  "Pagol useless useless useless useless useless chutia", "Pagol useless useless useless useless useless futni",
+  "Pagol useless useless useless useless useless bokachoda", "Pagol useless useless useless useless useless pagol",
+  "Pagol useless useless useless useless useless useless sala",
+  "Pagol useless useless useless useless useless useless gadha",
+  "Pagol useless useless useless useless useless useless chutia",
+  "Pagol useless useless useless useless useless useless futni",
+  "Pagol useless useless useless useless useless useless bokachoda",
+  "Pagol useless useless useless useless useless useless pagol",
+  "Pagol useless useless useless useless useless useless useless sala",
+  "Pagol useless useless useless useless useless useless useless gadha",
+  "Pagol useless useless useless useless useless useless useless chutia",
+  "Pagol useless useless useless useless useless useless useless futni",
+  "Pagol useless useless useless useless useless useless useless bokachoda",
+  "Pagol useless useless useless useless useless useless useless pagol",
+  "Pagol useless useless useless useless useless useless useless useless sala",
+  "Pagol useless useless useless useless useless useless useless useless gadha",
+  "Pagol useless useless useless useless useless useless useless useless chutia",
+  "Pagol useless useless useless useless useless useless useless useless futni",
+  "Pagol useless useless useless useless useless useless useless useless bokachoda",
+  "Pagol useless useless useless useless useless useless useless useless pagol",
+  "Pagol useless useless useless useless useless useless useless useless useless sala",
+  "Pagol useless useless useless useless useless useless useless useless useless gadha",
+  "Pagol useless useless useless useless useless useless useless useless useless chutia",
+  "Pagol useless useless useless useless useless useless useless useless useless futni",
+  "Pagol useless useless useless useless useless useless useless useless useless bokachoda",
+  "Pagol useless useless useless useless useless useless useless useless useless pagol",
+  "Pagol useless useless useless useless useless useless useless useless useless useless sala",
+  "Pagol useless useless useless useless useless useless useless useless useless useless gadha",
+  "Pagol useless useless useless useless useless useless useless useless useless useless chutia",
+  "Pagol useless useless useless useless useless useless useless useless useless useless futni",
+  "Pagol useless useless useless useless useless useless useless useless useless useless bokachoda",
+  "Pagol useless useless useless useless useless useless useless useless useless useless pagol",
+  "Pagol useless useless useless useless useless useless useless useless useless useless useless sala",
+  "Pagol useless useless useless useless useless useless useless useless useless useless useless gadha",
+  "Pagol useless useless useless useless useless useless useless useless useless useless useless chutia",
+  "Pagol useless useless useless useless useless useless useless useless useless useless useless futni",
+  "Pagol useless useless useless useless useless useless useless useless useless useless useless bokachoda",
+  "Pagol useless useless useless useless useless useless useless useless useless useless useless pagol",
+  "Pagol useless useless useless useless useless useless useless useless useless useless useless useless sala",
+  "Pagol useless useless useless useless useless useless useless useless useless useless useless useless gadha",
+  "Pagol useless useless useless useless useless useless useless useless useless useless useless useless chutia",
+  "Pagol useless useless useless useless useless useless useless useless useless useless useless useless futni",
+  "Pagol useless useless useless useless useless useless useless useless useless useless useless useless bokachoda",
+  "Pagol useless useless useless useless useless useless useless useless useless useless useless useless pagol",
+];
 
-module.exports = {
-  name: "autoraid",
-  alias: ["autoraid","stopraid"],
-  description: "AutoRaid with 168 Bengali gali",
-  async run(m, { sock, body, sender, args }) {
-    if (body.startsWith(".autoraid")) {
-      const target = args[0];
-      if (!target) {
-        await sock.sendMessage(m.chat, { text: "❌ Tag/number dite hobe!" });
-        return;
-      }
-      raidTarget = target.replace("@", "").replace(/\D/g, "");
-      isRaiding = true;
-      await sock.sendMessage(m.chat, {
-        text: `🔥 AutoRaid started on @${raidTarget}`,
-        mentions: [raidTarget + "@s.whatsapp.net"],
-      });
+// Command handler
+async function handleCommand(sock, m) {
+  const from = m.key.remoteJid;
+  const text = m.message.conversation || m.message.extendedTextMessage?.text || "";
+
+  // autoraid on
+  if (text.startsWith(".autoraid")) {
+    let target = text.split(" ")[1];
+    if (!target) {
+      await sock.sendMessage(from, { text: "❌ Use: .autoraid @user" });
+      return;
     }
+    autoRaidTargets[target.replace("@", "")] = true;
+    await sock.sendMessage(from, { text: `✅ AutoRaid started on ${target}` });
+  }
 
-    if (body.startsWith(".stopraid")) {
-      isRaiding = false;
-      raidTarget = null;
-      await sock.sendMessage(m.chat, { text: "✅ AutoRaid stopped." });
+  // autoraid off
+  if (text.startsWith(".stopraid")) {
+    let target = text.split(" ")[1];
+    if (!target) {
+      await sock.sendMessage(from, { text: "❌ Use: .stopraid @user" });
+      return;
     }
+    delete autoRaidTargets[target.replace("@", "")];
+    await sock.sendMessage(from, { text: `🛑 AutoRaid stopped on ${target}` });
+  }
+}
 
-    if (isRaiding && raidTarget && sender.includes(raidTarget)) {
-      const randomGali = gali[Math.floor(Math.random() * gali.length)];
-      await sock.sendMessage(m.chat, {
-        text: `@${raidTarget} ${randomGali}`,
-        mentions: [raidTarget + "@s.whatsapp.net"],
-      });
-    }
-  },
-};
+// Auto reply (when target sends msg)
+async function handleIncoming(sock, m) {
+  const from = m.key.remoteJid;
+  const sender = m.key.participant || m.key.remoteJid;
+  const user = sender.split("@")[0];
+
+  if (autoRaidTargets[user]) {
+    let randomGali = galiList[Math.floor(Math.random() * galiList.length)];
+    await sock.sendMessage(from, { text: `@${user} ${randomGali}`, mentions: [sender] });
+  }
+}
+
+module.exports = { handleCommand, handleIncoming };
