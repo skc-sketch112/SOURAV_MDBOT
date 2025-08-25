@@ -33,25 +33,25 @@ const gali = [
   "pagol master fail","bokachoda master","tor mukh master fail","pagol devil",
   "bokachoda devil fail","tor mukh devil fail","pagol beast","bokachoda beast fail",
   "tor mukh beast fail","pagol goru","bokachoda goru","tor mukh goru fail","pagol goru fail"
-]; // === Total: 168 ===
+]; // 168 total
 
 let raidTarget = null;
 let isRaiding = false;
 
 module.exports = {
   name: "autoraid",
-  description: "AutoRaid a user with 168 Bengali gali",
-  commands: [".autoraid", ".stopraid"],
-  handle: async function (sock, m, from, sender, body) {
+  alias: ["autoraid","stopraid"],
+  description: "AutoRaid with 168 Bengali gali",
+  async run(m, { sock, body, sender, args }) {
     if (body.startsWith(".autoraid")) {
-      const target = body.split(" ")[1];
+      const target = args[0];
       if (!target) {
-        await sock.sendMessage(from, { text: "❌ Tag or number dite hobe!" });
+        await sock.sendMessage(m.chat, { text: "❌ Tag/number dite hobe!" });
         return;
       }
       raidTarget = target.replace("@", "").replace(/\D/g, "");
       isRaiding = true;
-      await sock.sendMessage(from, {
+      await sock.sendMessage(m.chat, {
         text: `🔥 AutoRaid started on @${raidTarget}`,
         mentions: [raidTarget + "@s.whatsapp.net"],
       });
@@ -60,12 +60,12 @@ module.exports = {
     if (body.startsWith(".stopraid")) {
       isRaiding = false;
       raidTarget = null;
-      await sock.sendMessage(from, { text: "✅ AutoRaid stopped." });
+      await sock.sendMessage(m.chat, { text: "✅ AutoRaid stopped." });
     }
 
     if (isRaiding && raidTarget && sender.includes(raidTarget)) {
       const randomGali = gali[Math.floor(Math.random() * gali.length)];
-      await sock.sendMessage(from, {
+      await sock.sendMessage(m.chat, {
         text: `@${raidTarget} ${randomGali}`,
         mentions: [raidTarget + "@s.whatsapp.net"],
       });
