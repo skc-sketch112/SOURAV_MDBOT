@@ -1,46 +1,45 @@
 #!/usr/bin/env bash
 set -e
 
-log() {
-  TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
-  echo "{\"time\":\"$TIMESTAMP\",\"level\":\"info\",\"msg\":\"$1\"}"
-}
+echo "🚀 Starting Ultra Render Build for SOURAV_MD Bot..."
 
-error_exit() {
-  TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
-  echo "{\"time\":\"$TIMESTAMP\",\"level\":\"error\",\"msg\":\"$1\"}"
-  exit 1
-}
+# Update system & install base tools
+apt-get update -y
+apt-get upgrade -y
+apt-get install -y wget curl git unzip build-essential python3 python3-pip
 
-log "🔥 Starting Ultra Pro Render Build for SOURAV_MD 🔥"
+# FFmpeg installation (for stickers, audio/video, song.js)
+echo "🎵 Installing FFmpeg..."
+apt-get install -y ffmpeg
+npm install -g ffmpeg-static @ffmpeg-installer/ffmpeg
 
-# Check Node.js version
-NODE_VER=$(node -v || echo "not-installed")
-log "⚡ Node.js version: $NODE_VER"
-if [[ "$NODE_VER" == "not-installed" ]]; then
-  error_exit "Node.js not found! Render environment broken."
+# Ensure Node.js version
+echo "⚡ Ensuring correct Node.js version..."
+node -v
+npm -v
+
+# Install PM2 globally (process manager, keeps bot alive)
+echo "🔄 Installing PM2..."
+npm install -g pm2
+
+# Rebuild native modules for Render environment
+echo "🔧 Rebuilding modules..."
+npm rebuild
+
+# Install project dependencies
+echo "📦 Installing npm dependencies..."
+npm install --legacy-peer-deps
+
+# Cache clear
+echo "🧹 Cleaning npm cache..."
+npm cache clean --force
+
+# Symlink ffmpeg + ffprobe if not linked
+if ! command -v ffmpeg &> /dev/null; then
+  echo "🔗 Linking ffmpeg..."
+  ln -s /usr/bin/ffmpeg /usr/local/bin/ffmpeg
+  ln -s /usr/bin/ffprobe /usr/local/bin/ffprobe
 fi
 
-# Clean old modules
-log "🧹 Cleaning old cache..."
-rm -rf node_modules ./yt-dlp ./ffmpeg || true
-npm cache clean --force || true
-
-# Install yt-dlp
-log "📥 Downloading yt-dlp..."
-curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ./yt-dlp || error_exit "yt-dlp download failed!"
-chmod +x ./yt-dlp
-log "✅ yt-dlp installed!"
-
-# Ensure ffmpeg
-log "🎵 Setting up ffmpeg..."
-if [ ! -f "./node_modules/ffmpeg-static/ffmpeg" ]; then
-  log "⚡ Installing ffmpeg-static + fluent-ffmpeg..."
-  npm install ffmpeg-static fluent-ffmpeg --save || error_exit "Failed to install ffmpeg modules!"
-fi
-log "✅ ffmpeg ready!"
-
-# Extra bin permissions
-chmod +x ./node_modules/.bin/* || true
-
-log "🚀 Build finished successfully! SOURAV_MD is ultra pro ready."
+# Final check
+echo "✅ Build complete! You can now start SOURAV_MD bot with: pm2 start index.js"
