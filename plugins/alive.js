@@ -1,57 +1,106 @@
 const os = require("os");
-const moment = require("moment");
+const axios = require("axios");
 
 module.exports = {
   name: "alive",
-  command: ["alive", "online", "bot"],
-  execute: async (sock, m, args) => {
+  command: ["alive", "online", "status"],
+  execute: async (sock, m) => {
     try {
-      // System info
-      const uptime = moment.duration(process.uptime(), "seconds").humanize();
-      const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
-      const freeMem = (os.freemem() / 1024 / 1024 / 1024).toFixed(2);
-      const platform = os.platform();
-      const cpu = os.cpus()[0].model;
+      // ⏳ Bot uptime
+      let uptimeSec = process.uptime();
+      let uptimeHrs = Math.floor(uptimeSec / 3600);
+      let uptimeMin = Math.floor((uptimeSec % 3600) / 60);
+      let uptime = `${uptimeHrs}h ${uptimeMin}m`;
 
-      // Bot + owner info
-      const botName = "⚡ Ultra-MD Bot";
-      const ownerName = "👑 SOURAV_MD";
-      const prefix = ".";
+      // 💻 System info
+      let totalMem = (os.totalmem() / (1024 * 1024 * 1024)).toFixed(2);
+      let freeMem = (os.freemem() / (1024 * 1024 * 1024)).toFixed(2);
+      let platform = os.platform();
+      let cpuModel = os.cpus()[0].model;
 
-      const caption = `
-╭───🔥 ${botName} 🔥───╮
+      // 📅 Date & Time
+      let now = new Date();
+      let date = now.toLocaleDateString("en-IN", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      let time = now.toLocaleTimeString("en-IN");
 
-🤖 *Bot Status:* Online ✅  
-👑 *Owner:* ${ownerName}  
-🕒 *Uptime:* ${uptime}  
-⌨️ *Prefix:* ${prefix}  
+      // ✨ Alive Message
+      let aliveMsg = `✨ *SOURAV_MD STATUS* ✨
 
-💻 *System:* ${platform}  
-⚡ *CPU:* ${cpu}  
-📦 *RAM:* ${freeMem}GB free / ${totalMem}GB  
+✅ I'm alive and running smoothly!
 
-╰───────────────╯
+👑 *Owner:* SOURAV_MD  
+🤖 *Bot Name:* SOURAV_MD  
 
-✨ Type *${prefix}menu* to see all commands.
-      `;
+📅 *Date:* ${date}  
+⏰ *Time:* ${time}  
+⏳ *Uptime:* ${uptime}  
 
-      // Send image with caption
+💻 *Platform:* ${platform}  
+🖥 *CPU:* ${cpuModel}  
+📊 *RAM:* ${freeMem}GB / ${totalMem}GB  
+
+🚀 _Your professional WhatsApp assistant is always online!_`;
+
+      // 🎨 Random styles
+      const styles = ["neon", "glitch", "matrix", "retro", "gradient"];
+      const pick = styles[Math.floor(Math.random() * styles.length)];
+
+      // 🔥 Multiple APIs for reliability
+      const apiList = [
+        `https://api.popcat.xyz/text?text=SOURAV_MD%20${pick}`,
+        `https://dummyimage.com/600x400/000/fff.png&text=SOURAV_MD-${pick}`,
+        `https://single-developers-api.vercel.app/textpro?theme=${pick}&text=SOURAV_MD`,
+      ];
+
+      let imgUrl = null;
+
+      // ✅ Try each API until one works
+      for (let api of apiList) {
+        try {
+          await axios.get(api, { timeout: 7000 });
+          imgUrl = api;
+          break;
+        } catch (err) {
+          console.warn(`⚠️ API failed: ${api}`);
+        }
+      }
+
+      // Send Alive text first
       await sock.sendMessage(
         m.key.remoteJid,
-        {
-          image: { url: "https://i.imgur.com/G8r9n8T.jpeg" }, // 👈 Replace with your custom alive logo
-          caption: caption,
-        },
+        { text: aliveMsg },
         { quoted: m }
       );
 
+      // Then Alive image (if available)
+      if (imgUrl) {
+        await sock.sendMessage(
+          m.key.remoteJid,
+          {
+            image: { url: imgUrl },
+            caption: `🌟 *SOURAV_MD ALIVE* 🌟\n🎨 Style: ${pick.toUpperCase()}`,
+          },
+          { quoted: m }
+        );
+      } else {
+        await sock.sendMessage(
+          m.key.remoteJid,
+          { text: "⚠️ Logo API failed. Showing only text alive." },
+          { quoted: m }
+        );
+      }
     } catch (err) {
       console.error("Alive.js error:", err);
       await sock.sendMessage(
         m.key.remoteJid,
-        { text: "❌ Error in alive command." },
+        { text: "❌ Something went wrong with alive command." },
         { quoted: m }
       );
     }
-  }
+  },
 };
