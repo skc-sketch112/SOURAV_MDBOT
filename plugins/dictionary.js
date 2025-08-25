@@ -1,46 +1,58 @@
-// plugins/dictionary.js
 const axios = require("axios");
 
 module.exports = {
-  command: ["dict", "dictionary"],
-  description: "Get the meaning, pronunciation & example of a word",
-  
-  async handler(sock, m, args) {
-    const word = args.join(" ").trim();
-    if (!word) {
-      return sock.sendMessage(m.chat, { text: "📖 Usage: *!dict <word>*" }, { quoted: m });
+    name: "dictionary",
+    command: ["dict", "meaning"], // ✅ Only .dict and .meaning
+    execute: async (sock, m, args) => {
+        if (!args[0]) {
+            return sock.sendMessage(
+                m.key.remoteJid,
+                { text: "❌ Please provide a word. Example: `.dict power`" },
+                { quoted: m }
+            );
+        }
+
+        let word = args.join(" ").toLowerCase();
+
+        try {
+            // English meaning
+            const res = await axios.get(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+            const data = res.data[0];
+
+            let phonetics = data.phonetics?.[0]?.text || "";
+            let meanings = data.meanings || [];
+
+            let allMeanings = meanings.map((mObj, idx) => {
+                let defs = mObj.definitions
+                    .map((d, i) => `   ${i + 1}. ${d.definition}${d.example ? `\n      💡 Example: ${d.example}` : ""}`)
+                    .join("\n");
+
+                let syns = mObj.synonyms?.slice(0, 8).join(", ") || "Not available";
+                let ants = mObj.antonyms?.slice(0, 8).join(", ") || "Not available";
+
+                return `🔹 *Part of Speech:* ${mObj.partOfSpeech}\n${defs}\n\n🔑 *Synonyms:* ${syns}\n❌ *Antonyms:* ${ants}`;
+            }).join("\n\n━━━━━━━━━━━━━━━\n\n");
+
+            // Bengali translation
+            const trans = await axios.get(
+                `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=bn&dt=t&q=${encodeURIComponent(word)}`
+            );
+            let bengali = trans.data[0][0][0];
+
+            // Build response
+            let reply = `📖 *Word:* ${word}
+🔊 *Pronunciation:* ${phonetics}
+
+🌍 *Bengali:* ${bengali}
+
+━━━━━━━━━━━━━━━
+${allMeanings}`;
+
+            await sock.sendMessage(m.key.remoteJid, { text: reply }, { quoted: m });
+
+        } catch (e) {
+            console.error("Dictionary Error:", e.message);
+            await sock.sendMessage(m.key.remoteJid, { text: "❌ Word not found or API error!" }, { quoted: m });
+        }
     }
-
-    try {
-      const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
-      const { data } = await axios.get(url);
-
-      const entry = data[0];
-      let msg = `📘 *Word:* ${entry.word}`;
-
-      if (entry.phonetics && entry.phonetics.length && entry.phonetics[0].text) {
-        msg += `\n🔊 *Pronunciation:* ${entry.phonetics[0].text}`;
-      }
-
-      if (entry.meanings && entry.meanings.length > 0) {
-        entry.meanings.forEach((meaning, i) => {
-          msg += `\n\n👉 *${i + 1}. ${meaning.partOfSpeech}*`;
-          meaning.definitions.forEach((def, j) => {
-            msg += `\n   ${j + 1}) ${def.definition}`;
-            if (def.example) msg += `\n      💡 Example: _${def.example}_`;
-          });
-        });
-      }
-
-      await sock.sendMessage(m.chat, { text: msg }, { quoted: m });
-
-    } catch (err) {
-      console.error("Dictionary Error:", err.message);
-      await sock.sendMessage(
-        m.chat,
-        { text: `❌ No results found for *${word}*.` },
-        { quoted: m }
-      );
-    }
-  }
 };
