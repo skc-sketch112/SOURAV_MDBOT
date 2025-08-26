@@ -1,44 +1,64 @@
-const { Sticker } = require("wa-sticker-formatter");
-const fetch = require("node-fetch");
+const { createCanvas } = require("canvas");
+const { Sticker, StickerTypes } = require("wa-sticker-formatter");
 
 module.exports = {
   name: "textsticker",
-  command: ["textsticker", "ts"],
-  async execute(sock, m, args) {
-    try {
-      console.log("🔎 ARGS:", args);
+  alias: ["tsticker", "ts"],
+  desc: "Create random styled transparent text stickers",
+  category: "converter",
 
-      if (args.length < 1) {
-        return await sock.sendMessage(
-          m.key.remoteJid,
-          { text: "⚠️ Usage: .textsticker your_text" },
-          { quoted: m }
-        );
-      }
+  async exec({ m, sock, args }) {
+    try {
+      if (!args[0]) return m.reply("⚠️ Give me some text!\nExample: `.textsticker SOURAV_MD`");
 
       const text = args.join(" ");
-      console.log("📝 Generating text sticker with:", text);
+      const width = 512, height = 512;
+      const canvas = createCanvas(width, height);
+      const ctx = canvas.getContext("2d");
 
-      const url = `https://dummyimage.com/512x512/000/fff.png&text=${encodeURIComponent(text)}`;
-      console.log("🌍 Fetching image from:", url);
+      // Transparent background
+      ctx.clearRect(0, 0, width, height);
 
-      const res = await fetch(url);
-      const buffer = await res.buffer();
+      // Random Colors / Gradient
+      function randomColor() {
+        return `hsl(${Math.floor(Math.random() * 360)}, 100%, 50%)`;
+      }
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, randomColor());
+      gradient.addColorStop(1, randomColor());
 
+      // Random Font Size & Style
+      const fontSize = Math.floor(Math.random() * 80) + 60; // 60px – 140px
+      const fonts = ["Sans", "Serif", "Arial", "Courier", "Georgia", "Impact", "Verdana"];
+      const font = fonts[Math.floor(Math.random() * fonts.length)];
+
+      ctx.fillStyle = gradient;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `bold ${fontSize}px ${font}`;
+
+      // Shadow effect random
+      ctx.shadowColor = randomColor();
+      ctx.shadowBlur = Math.floor(Math.random() * 30);
+
+      // Draw Text
+      ctx.fillText(text, width / 2, height / 2);
+
+      // Convert to sticker
+      const buffer = canvas.toBuffer();
       const sticker = new Sticker(buffer, {
-        pack: "SOURAVMD",
-        author: "WhatsApp Bot",
-        type: "full",
+        pack: "🔥 SOURAV_MD RANDOM",
+        author: "SOURAV_MD 💎",
+        type: StickerTypes.FULL,
         quality: 100,
       });
 
-      const stickerBuffer = await sticker.toBuffer();
-      console.log("✅ Text sticker built, sending...");
-      await sock.sendMessage(m.key.remoteJid, { sticker: stickerBuffer }, { quoted: m });
+      const stickerBuffer = await sticker.build();
+      await sock.sendMessage(m.chat, { sticker: stickerBuffer }, { quoted: m });
 
     } catch (e) {
-      console.error("🔥 TextSticker Error:", e);
-      await sock.sendMessage(m.key.remoteJid, { text: "❌ Error making text sticker" }, { quoted: m });
+      console.error("TextSticker Error:", e);
+      m.reply("❌ Failed to create random text sticker.");
     }
   }
 };
