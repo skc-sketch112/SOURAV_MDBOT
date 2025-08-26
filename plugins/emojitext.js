@@ -18,11 +18,14 @@ module.exports = {
       // প্রতিটা অক্ষরকে emoji দিয়ে গঠন করা হবে
       for (let char of text) {
         if (char === " ") {
-          output += "\n\n"; // space এর জন্য gap
+          output += "\n"; // space এর জন্য gap
         } else {
-          output += `${emoji} `.repeat(5) + "\n"; // প্রতিটা অক্ষরের জন্য emoji line
+          // প্রতিটা অক্ষরের জন্য 5x3 block emoji
+          for (let i = 0; i < 3; i++) {
+            output += `${emoji} `.repeat(5) + "\n";
+          }
+          output += "\n";
         }
-        output += "\n";
       }
 
       await m.reply(output.trim());
