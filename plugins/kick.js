@@ -3,52 +3,43 @@ module.exports = {
     command: ["kick", "remove"],
     execute: async (sock, m, args) => {
         try {
-            // Must mention at least one member
-            const mentions = m.message.extendedTextMessage?.contextInfo?.mentionedJid;
-            if(!mentions || mentions.length === 0) {
-                return await sock.sendMessage(
-                    m.key.remoteJid,
-                    { text: "⚠️ Please mention one or more members to kick!" },
-                    { quoted: m }
-                );
-            }
+            if(!args[0]) return await sock.sendMessage(
+                m.key.remoteJid,
+                { text: "⚠️ Usage: `.kick 919xxxxxxxx 919yyyyyyyy`" },
+                { quoted: m }
+            );
 
-            const metadata = await sock.groupMetadata(m.key.remoteJid);
-            const groupAdmins = metadata.participants.filter(p => p.admin).map(p => p.id);
+            const groupMetadata = await sock.groupMetadata(m.key.remoteJid);
+            if(!groupMetadata.participants.some(p => p.admin)) return await sock.sendMessage(
+                m.key.remoteJid,
+                { text: "❌ Bot must be admin to kick members!" },
+                { quoted: m }
+            );
 
-            let kicked = [];
-            let failed = [];
+            const numbers = args.map(n => n.replace(/[^0-9]/g, "") + "@s.whatsapp.net");
+            let success = [], failed = [];
 
-            for(const jid of mentions){
+            for(const number of numbers){
                 try {
-                    if(groupAdmins.includes(jid)){
-                        failed.push(`${jid.split("@")[0]} (Admin cannot kick)`);
+                    const isMember = groupMetadata.participants.some(p => p.id === number);
+                    if(!isMember){
+                        failed.push(`${number.split("@")[0]} (Not in group)`);
                         continue;
                     }
-                    await sock.groupRemove(m.key.remoteJid, [jid]);
-                    kicked.push(jid.split("@")[0]);
+
+                    await sock.groupParticipantsUpdate(m.key.remoteJid, [number], "remove");
+                    success.push(number.split("@")[0]);
                 } catch(e){
-                    failed.push(`${jid.split("@")[0]} (Failed)`);
+                    failed.push(`${number.split("@")[0]} (Failed)`);
                 }
             }
 
-            let reply = "⚡ SOURAV_MD Kick Result ⚡\n\n";
-            if(kicked.length) reply += `✅ Kicked: ${kicked.join(", ")}\n`;
-            if(failed.length) reply += `❌ Failed: ${failed.join(", ")}`;
-
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: reply },
-                { quoted: m }
-            );
+            const reply = `✅ Kick Result:\n✔️ Removed: ${success.join(", ") || "None"}\n❌ Failed: ${failed.join(", ") || "None"}`;
+            await sock.sendMessage(m.key.remoteJid, { text: reply }, { quoted: m });
 
         } catch(e){
-            console.error("Kick.js Error:", e);
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: "❌ Something went wrong while kicking members!" },
-                { quoted: m }
-            );
+            console.error("Kick.js Advanced Error:", e);
+            await sock.sendMessage(m.key.remoteJid, { text: "❌ Something went wrong while kicking members!" }, { quoted: m });
         }
     }
 };
