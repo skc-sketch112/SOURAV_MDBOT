@@ -75,17 +75,6 @@ if (fs.existsSync(PLUGIN_DIR)) {
   });
 }
 
-// ================== ANTI-BAN ==================
-let antiBanEnabled = true;
-async function applyAntiBan(sock, m) {
-  if (!antiBanEnabled) return;
-  const jid = m.key.remoteJid;
-  try {
-    await sock.sendPresenceUpdate("composing", jid);
-    await new Promise(r => setTimeout(r, 500 + Math.random() * 1000));
-  } catch { }
-}
-
 // ================== START BOT ==================
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState("auth");
@@ -93,8 +82,8 @@ async function startBot() {
 
   const sock = makeWASocket({
     logger: pino({ level: "silent" }),
-    printQRInTerminal: true, // প্রথমবার টার্মিনালে QR দেখাবে
-    qrTimeout: 0, // ❗ QR expire হবে না
+    printQRInTerminal: true,  // টার্মিনালে QR দেখাবে
+    qrTimeout: 0,              // ❗ QR expire হবে না
     auth: state,
     version
   });
@@ -167,7 +156,6 @@ async function startBot() {
     let command = commands.get(cmd);
     if (command && typeof command.execute === "function") {
       try {
-        await applyAntiBan(sock, m);
         await command.execute(sock, m, args, { axios, fetch });
         console.log(`⚡ Command executed: ${cmd}`);
       } catch (err) {
@@ -201,9 +189,14 @@ async function startBot() {
   });
 
   // ================== KEEP ALIVE PING ==================
-  setInterval(() => {
-    console.log("⚡ Keeping bot alive...");
-  }, 25 * 60 * 1000);
+  setInterval(async () => {
+    try {
+      await sock.sendPresenceUpdate("available");
+      console.log("📡 Keep-alive ping sent!");
+    } catch (err) {
+      console.error("Keep-alive ping error:", err);
+    }
+  }, 1000 * 60 * 2); // প্রতি 2 মিনিটে presence update পাঠাবে
 }
 
 startBot();
