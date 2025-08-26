@@ -1,57 +1,47 @@
-const { downloadMediaMessage } = require("@whiskeysockets/baileys");
+const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
 
 module.exports = {
-    name: "sticker",
-    command: ["sticker", "s"],
-    description: "Convert image/video to sticker",
+  name: "sticker",
+  command: ["sticker", "s"],
+  description: "Make sticker from image/video",
 
-    async execute(sock, m, args) {
-        try {
-            // check direct or quoted media
-            const msg =
-                m.message?.imageMessage ||
-                m.message?.videoMessage ||
-                m.quoted?.message?.imageMessage ||
-                m.quoted?.message?.videoMessage;
+  async execute(sock, m, args) {
+    try {
+      // quoted ba direct media
+      const quoted = m.quoted ? m.quoted : m;
 
-            if (!msg) {
-                return await sock.sendMessage(
-                    m.key.remoteJid,
-                    { text: "⚠️ Send or reply to an *image/video (max 10s)* with `.sticker`" },
-                    { quoted: m }
-                );
-            }
+      const type = Object.keys(quoted.message)[0]; // imageMessage, videoMessage
+      if (type !== "imageMessage" && type !== "videoMessage") {
+        return sock.sendMessage(
+          m.chat,
+          { text: "⚠️ Reply or send an *image/video (max 10s)* with .sticker" },
+          { quoted: m }
+        );
+      }
 
-            // download
-            const buffer = await downloadMediaMessage(
-                m.quoted ? m.quoted : m,
-                "buffer",
-                {},
-                { logger: undefined, reuploadRequest: sock.updateMediaMessage }
-            );
+      // media download
+      const stream = await downloadContentFromMessage(
+        quoted.message[type],
+        type.includes("video") ? "video" : "image"
+      );
 
-            if (!buffer) {
-                return await sock.sendMessage(
-                    m.key.remoteJid,
-                    { text: "❌ Failed to download media, try again!" },
-                    { quoted: m }
-                );
-            }
+      let buffer = Buffer.from([]);
+      for await (const chunk of stream) {
+        buffer = Buffer.concat([buffer, chunk]);
+      }
 
-            // send sticker
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { sticker: buffer },
-                { quoted: m }
-            );
+      // send sticker
+      await sock.sendMessage(
+        m.chat,
+        { sticker: buffer },
+        { quoted: m }
+      );
 
-        } catch (err) {
-            console.error("Sticker Error:", err);
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: `❌ Sticker failed: ${err.message}` },
-                { quoted: m }
-            );
-        }
+    } catch (e) {
+      console.error("Sticker Error:", e);
+      await sock.sendMessage(
+        m.chat,
+        { text: "❌ Sticker convert failed, try again!" },
+        { quoted: m }
+      );
     }
-};
