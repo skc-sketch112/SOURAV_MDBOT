@@ -9,10 +9,16 @@ module.exports = {
 
   async exec({ m, sock, args }) {
     try {
-      if (!args[0]) return m.reply("⚠️ Give me some text!\nExample: `.textsticker SOURAV_MD`");
+      if (!args[0])
+        return await sock.sendMessage(
+          m.chat,
+          { text: "⚠️ Give me some text!\nExample: `.textsticker SOURAV_MD`" },
+          { quoted: m }
+        );
 
       const text = args.join(" ");
-      const width = 512, height = 512;
+      const width = 512;
+      const height = 512;
       const canvas = createCanvas(width, height);
       const ctx = canvas.getContext("2d");
 
@@ -28,7 +34,7 @@ module.exports = {
       gradient.addColorStop(1, randomColor());
 
       // Random Font Size & Style
-      const fontSize = Math.floor(Math.random() * 80) + 60; // 60px – 140px
+      const fontSize = Math.floor(Math.random() * 80) + 60;
       const fonts = ["Sans", "Serif", "Arial", "Courier", "Georgia", "Impact", "Verdana"];
       const font = fonts[Math.floor(Math.random() * fonts.length)];
 
@@ -46,6 +52,7 @@ module.exports = {
 
       // Convert to sticker
       const buffer = canvas.toBuffer();
+
       const sticker = new Sticker(buffer, {
         pack: "🔥 SOURAV_MD RANDOM",
         author: "SOURAV_MD 💎",
@@ -54,11 +61,20 @@ module.exports = {
       });
 
       const stickerBuffer = await sticker.build();
-      await sock.sendMessage(m.chat, { sticker: stickerBuffer }, { quoted: m });
+
+      await sock.sendMessage(
+        m.chat,
+        { sticker: stickerBuffer },
+        { quoted: m }
+      );
 
     } catch (e) {
       console.error("TextSticker Error:", e);
-      m.reply("❌ Failed to create random text sticker.");
+      await sock.sendMessage(
+        m.chat,
+        { text: "❌ Failed to create random text sticker." },
+        { quoted: m }
+      );
     }
-  }
+  },
 };
