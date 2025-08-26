@@ -37,7 +37,7 @@
     "human-readable": "0.2.1",
     "node-cache": "5.1.2",
     "mathjs": "11.11.0",
-    "sharp": "0.33.4", 
+    "sharp": "0.32.6", 
     "path": "0.12.7"
   },
   "devDependencies": {
