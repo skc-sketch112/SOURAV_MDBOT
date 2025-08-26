@@ -21,7 +21,7 @@ module.exports = {
       }
 
       const url = args[0];
-      // ✅ Working API
+      // ✅ New API (stable)
       const api = `https://raganork-api.vercel.app/api/igdl?url=${encodeURIComponent(url)}`;
 
       const { data } = await axios.get(api);
