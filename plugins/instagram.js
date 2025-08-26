@@ -1,37 +1,49 @@
-// plugins/instagram.js
-const { igdl } = require("@bochilteam/scraper");
+const axios = require("axios");
 
 module.exports = {
-    name: "instagram",
-    alias: ["ig", "insta", "reel", "igdl"],
-    desc: "Download Instagram Reels/Videos",
-    category: "downloader",
+  name: "instagram",
+  command: ["ig", "instagram"],
+  description: "Download Instagram Video/Reel/Post",
 
-    async execute(sock, m, args) {
-        try {
-            if (!args[0]) {
-                return await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Please provide an Instagram link!\nExample: .instagram https://www.instagram.com/reel/xyz" }, { quoted: m });
-            }
-
-            const url = args[0];
-            await sock.sendMessage(m.key.remoteJid, { text: "⏳ Downloading Instagram Video... Please wait!" }, { quoted: m });
-
-            const result = await igdl(url);
-
-            if (!result || !result[0]?.url) {
-                return await sock.sendMessage(m.key.remoteJid, { text: "❌ Failed to fetch video. Try another link!" }, { quoted: m });
-            }
-
-            for (let i = 0; i < result.length; i++) {
-                await sock.sendMessage(m.key.remoteJid, {
-                    video: { url: result[i].url },
-                    caption: `✅ Downloaded by *SOURAV_MD* 🚀`
-                }, { quoted: m });
-            }
-
-        } catch (e) {
-            console.error("Instagram Plugin Error:", e);
-            await sock.sendMessage(m.key.remoteJid, { text: "❌ Error fetching Instagram video!" }, { quoted: m });
-        }
+  async execute(sock, m, args) {
+    if (!args[0]) {
+      return await sock.sendMessage(
+        m.key.remoteJid,
+        { text: "❌ Please provide a valid Instagram link.\n\nExample: .ig https://www.instagram.com/reel/xyz/" },
+        { quoted: m }
+      );
     }
+
+    let url = args[0];
+
+    try {
+      // 🔹 Working free API (no key required)
+      let api = `https://api.douyin.wtf/api?url=${encodeURIComponent(url)}`;
+
+      let res = await axios.get(api);
+
+      if (!res.data || !res.data.video) {
+        return await sock.sendMessage(
+          m.key.remoteJid,
+          { text: "⚠️ Couldn't fetch the video. Try another Instagram link." },
+          { quoted: m }
+        );
+      }
+
+      let videoUrl = res.data.video;
+
+      await sock.sendMessage(
+        m.key.remoteJid,
+        { video: { url: videoUrl }, caption: "✅ Downloaded from Instagram" },
+        { quoted: m }
+      );
+    } catch (err) {
+      console.error("Instagram plugin error:", err.message);
+      await sock.sendMessage(
+        m.key.remoteJid,
+        { text: "❌ Error while fetching Instagram media. API might be down or link is invalid." },
+        { quoted: m }
+      );
+    }
+  },
 };
