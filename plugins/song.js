@@ -1,8 +1,12 @@
-const { execFile } = require("child_process");
 const yts = require("yt-search");
 const ytdl = require("ytdl-core");
 const fs = require("fs");
 const path = require("path");
+const ffmpeg = require("fluent-ffmpeg");
+
+// Set FFmpeg path (ensure FFmpeg is installed)
+const ffmpegPath = require("ffmpeg-static");
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 module.exports = {
     name: "song",
@@ -47,95 +51,51 @@ module.exports = {
                 { quoted: m }
             );
 
-            // ⚡ Try yt-dlp first
-            const ytDlpPath = path.join(__dirname, "../yt-dlp");
-            if (!fs.existsSync(ytDlpPath)) {
-                console.error("[Song] yt-dlp binary not found at:", ytDlpPath);
-                return sock.sendMessage(
-                    jid,
-                    { text: "❌ Error: yt-dlp binary not found. Contact the bot administrator." },
-                    { quoted: m }
-                );
+            // Validate YouTube URL
+            if (!ytdl.validateURL(url)) {
+                throw new Error("Invalid YouTube URL.");
             }
 
-            // Ensure yt-dlp is executable
-            fs.chmodSync(ytDlpPath, "755");
-
-            try {
-                await new Promise((resolve, reject) => {
-                    execFile(
-                        ytDlpPath,
-                        [
-                            "-x",
-                            "--audio-format", "mp3",
-                            "--audio-quality", "0", // Best quality
-                            "-o", outFile,
-                            url
-                        ],
-                        { timeout: 300000 }, // 5-minute timeout
-                        (error, stdout, stderr) => {
-                            if (error) {
-                                console.error("[Song] yt-dlp error:", error.message, stderr);
-                                reject(error);
-                            } else {
-                                console.log("[Song] yt-dlp output:", stdout);
-                                resolve();
-                            }
-                        }
-                    );
-                });
-
-                // Verify file exists and is not empty
-                if (!fs.existsSync(outFile) || fs.statSync(outFile).size === 0) {
-                    throw new Error("Downloaded file is missing or empty.");
-                }
-
-                // ✅ Send song to WhatsApp
-                await sock.sendMessage(
-                    jid,
-                    {
-                        audio: { url: outFile },
-                        mimetype: "audio/mpeg",
-                        fileName: `${video.title}.mp3`
-                    },
-                    { quoted: m }
-                );
-
-                // Clean up
-                fs.unlinkSync(outFile);
-            } catch (ytDlpError) {
-                console.error("[Song] yt-dlp failed, trying ytdl-core fallback:", ytDlpError.message);
-                // Fallback to ytdl-core
+            // Download and convert audio using ytdl-core and fluent-ffmpeg
+            await new Promise((resolve, reject) => {
                 const stream = ytdl(url, {
                     filter: "audioonly",
                     quality: "highestaudio"
                 });
-                const writeStream = fs.createWriteStream(outFile);
-                stream.pipe(writeStream);
 
-                await new Promise((resolve, reject) => {
-                    writeStream.on("finish", resolve);
-                    writeStream.on("error", reject);
-                });
+                ffmpeg(stream)
+                    .audioBitrate(128)
+                    .format("mp3")
+                    .save(outFile)
+                    .on("end", () => {
+                        console.log(`[Song] Audio saved to: ${outFile}`);
+                        resolve();
+                    })
+                    .on("error", (err) => {
+                        console.error("[Song] FFmpeg error:", err.message);
+                        reject(err);
+                    });
+            });
 
-                if (!fs.existsSync(outFile) || fs.statSync(outFile).size === 0) {
-                    throw new Error("Fallback download failed or file is empty.");
-                }
-
-                // ✅ Send song to WhatsApp
-                await sock.sendMessage(
-                    jid,
-                    {
-                        audio: { url: outFile },
-                        mimetype: "audio/mpeg",
-                        fileName: `${video.title}.mp3`
-                    },
-                    { quoted: m }
-                );
-
-                // Clean up
-                fs.unlinkSync(outFile);
+            // Verify file exists and is not empty
+            if (!fs.existsSync(outFile) || fs.statSync(outFile).size === 0) {
+                throw new Error("Downloaded audio file is missing or empty.");
             }
+
+            // ✅ Send song to WhatsApp
+            await sock.sendMessage(
+                jid,
+                {
+                    audio: { url: outFile },
+                    mimetype: "audio/mpeg",
+                    fileName: `${video.title}.mp3`
+                },
+                { quoted: m }
+            );
+
+            // Clean up
+            fs.unlinkSync(outFile);
+            console.log(`[Song] Cleaned up: ${outFile}`);
         } catch (err) {
             console.error("[Song] Unexpected error:", err.message);
             await sock.sendMessage(
