@@ -4,7 +4,7 @@ const { Sticker, StickerTypes } = require("wa-sticker-formatter");
 module.exports = {
   name: "textsticker",
   alias: ["tsticker", "ts"],
-  desc: "Create random styled transparent text stickers",
+  desc: "Create colorful emoji/text stickers",
   category: "converter",
 
   async exec({ m, sock, args }) {
@@ -25,36 +25,22 @@ module.exports = {
       // Transparent background
       ctx.clearRect(0, 0, width, height);
 
-      // Random Colors / Gradient
-      function randomColor() {
-        return `hsl(${Math.floor(Math.random() * 360)}, 100%, 50%)`;
-      }
+      // Gradient fill
       const gradient = ctx.createLinearGradient(0, 0, width, height);
-      gradient.addColorStop(0, randomColor());
-      gradient.addColorStop(1, randomColor());
-
-      // Random Font Size & Style
-      const fontSize = Math.floor(Math.random() * 80) + 60;
-      const fonts = ["Sans", "Serif", "Arial", "Courier", "Georgia", "Impact", "Verdana"];
-      const font = fonts[Math.floor(Math.random() * fonts.length)];
-
+      gradient.addColorStop(0, `hsl(${Math.random()*360},100%,50%)`);
+      gradient.addColorStop(1, `hsl(${Math.random()*360},100%,50%)`);
       ctx.fillStyle = gradient;
+
+      // Random font
+      const fonts = ["Sans", "Serif", "Arial", "Courier", "Georgia", "Impact"];
+      ctx.font = `bold ${Math.floor(Math.random()*80+60)}px ${fonts[Math.floor(Math.random()*fonts.length)]}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.font = `bold ${fontSize}px ${font}`;
+      ctx.fillText(text, width/2, height/2);
 
-      // Shadow effect random
-      ctx.shadowColor = randomColor();
-      ctx.shadowBlur = Math.floor(Math.random() * 30);
-
-      // Draw Text
-      ctx.fillText(text, width / 2, height / 2);
-
-      // Convert to sticker
       const buffer = canvas.toBuffer();
-
       const sticker = new Sticker(buffer, {
-        pack: "🔥 SOURAV_MD RANDOM",
+        pack: "🔥 RANDOM STICKER",
         author: "SOURAV_MD 💎",
         type: StickerTypes.FULL,
         quality: 100,
@@ -68,11 +54,11 @@ module.exports = {
         { quoted: m }
       );
 
-    } catch (e) {
-      console.error("TextSticker Error:", e);
+    } catch (err) {
+      console.error("TextSticker Error:", err);
       await sock.sendMessage(
         m.chat,
-        { text: "❌ Failed to create random text sticker." },
+        { text: "❌ Failed to create sticker." },
         { quoted: m }
       );
     }
