@@ -1,47 +1,51 @@
+const { writeFile } = require("fs/promises");
 const { Sticker, StickerTypes } = require("wa-sticker-formatter");
 
 module.exports = {
   name: "sticker",
-  command: ["sticker", "s", "st"],
-  execute: async (sock, m, args) => {
+  command: ["sticker", "s"],
+
+  async execute(sock, m, args) {
     try {
-      let quoted = m.quoted ? m.quoted : m; // reply করা msg নাকি নিজের msg চেক করা
-      let mime = (quoted.msg || quoted).mimetype || "";
+      const quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+      const mime = quoted
+        ? quoted.imageMessage
+          ? "image"
+          : quoted.videoMessage
+          ? "video"
+          : null
+        : m.message?.imageMessage
+        ? "image"
+        : m.message?.videoMessage
+        ? "video"
+        : null;
 
-      if (!/image|video/.test(mime)) {
-        return sock.sendMessage(
-          m.chat,
-          { text: "❌ Reply an *image/video (max 10s)* বা send one with `.sticker`" },
-          { quoted: m }
-        );
+      if (!mime) {
+        return await sock.sendMessage(m.key.remoteJid, {
+          text: "⚠️ Reply to an image/video with `.sticker`",
+        });
       }
 
-      // ডাউনলোড মিডিয়া
-      let buffer = await quoted.download();
+      const buffer = await sock.downloadMediaMessage(
+        quoted ? { message: quoted } : m
+      );
 
-      if (!buffer) {
-        return sock.sendMessage(
-          m.chat,
-          { text: "⚠️ Media download failed, try again!" },
-          { quoted: m }
-        );
-      }
-
-      // স্টিকার বানানো
-      let sticker = new Sticker(buffer, {
-        pack: "🔥 My Pack",
-        author: "My Bot",
+      const sticker = new Sticker(buffer, {
+        pack: "MyBot",
+        author: "StickerGen",
         type: StickerTypes.FULL,
-        quality: 80,
       });
 
-      let stickerBuffer = await sticker.build();
+      const stickerBuffer = await sticker.build();
+      await sock.sendMessage(m.key.remoteJid, { sticker: stickerBuffer }, { quoted: m });
 
-      await sock.sendMessage(m.chat, { sticker: stickerBuffer }, { quoted: m });
-
-    } catch (e) {
-      console.error("Sticker error:", e);
-      sock.sendMessage(m.chat, { text: "⚠️ Sticker creation failed." }, { quoted: m });
+    } catch (err) {
+      console.error("Sticker plugin error:", err);
+      await sock.sendMessage(
+        m.key.remoteJid,
+        { text: "❌ Failed to make sticker: " + err.message },
+        { quoted: m }
+      );
     }
   },
 };
