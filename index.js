@@ -82,13 +82,13 @@ async function startBot() {
 
   const sock = makeWASocket({
     logger: pino({ level: "silent" }),
-    printQRInTerminal: true,  // টার্মিনালে QR দেখাবে
-    qrTimeout: 0,              // ❗ QR expire হবে না
+    printQRInTerminal: true,
+    qrTimeout: 0, // ❗ QR expire হবে না
     auth: state,
     version
   });
 
-  // QR / Connection update
+  // Connection update
   sock.ev.on("connection.update", (update) => {
     const { connection, qr } = update;
 
@@ -142,17 +142,7 @@ async function startBot() {
     let args = body.slice(1).trim().split(/\s+/);
     let cmd = args.shift().toLowerCase();
 
-    // Built-in commands
-    if (cmd === "ping") {
-      await sock.sendMessage(m.key.remoteJid, { text: "🏓 Pong! Bot is alive ✅" }, { quoted: m });
-      return;
-    }
-    if (cmd === "menu") {
-      await sock.sendMessage(m.key.remoteJid, { text: "📜 Full Menu Coming Soon..." }, { quoted: m });
-      return;
-    }
-
-    // Plugin commands
+    // ✅ Plugin commands only (no hardcoded ping/menu)
     let command = commands.get(cmd);
     if (command && typeof command.execute === "function") {
       try {
@@ -198,5 +188,13 @@ async function startBot() {
     }
   }, 1000 * 60 * 2); // প্রতি 2 মিনিটে presence update পাঠাবে
 }
+
+// ================== ERROR HANDLERS ==================
+process.on("uncaughtException", (err) => {
+  console.error("❌ Uncaught Exception:", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("❌ Unhandled Rejection:", reason);
+});
 
 startBot();
