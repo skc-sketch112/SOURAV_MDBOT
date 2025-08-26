@@ -16,23 +16,23 @@ module.exports = {
     command: ["sticker", "s", "st"],
     execute: async (sock, m, args) => {
         try {
-            // Get quoted or direct media
-            const quoted =
+            // 🟢 এখন থেকে reply করা image/video detect করবে
+            const quotedMsg = m.quoted ? m.quoted.message : null;
+            const media =
                 m.message?.imageMessage ||
                 m.message?.videoMessage ||
-                m.quoted?.message?.imageMessage ||
-                m.quoted?.message?.videoMessage;
+                (quotedMsg && quotedMsg.imageMessage) ||
+                (quotedMsg && quotedMsg.videoMessage);
 
-            // If user sends only text and no media
-            if (!quoted) {
+            if (!media) {
                 return sock.sendMessage(
                     m.key.remoteJid,
-                    { text: "❌ Send/Reply to an *image/video (max 10s)* or just drop media to make sticker!" },
+                    { text: "❌ Reply an *image/video (max 10s)* or send one with `.sticker`!" },
                     { quoted: m }
                 );
             }
 
-            // Download media (direct or quoted)
+            // 🟢 buffer ডাউনলোড
             const buffer = await sock.downloadMediaMessage(
                 m.message.imageMessage ? m :
                 m.message.videoMessage ? m :
@@ -42,28 +42,23 @@ module.exports = {
             if (!buffer) {
                 return sock.sendMessage(
                     m.key.remoteJid,
-                    { text: "❌ Couldn't download media. Try again." },
+                    { text: "❌ Failed to download media. Try again." },
                     { quoted: m }
                 );
             }
 
-            // Sticker build
+            // 🟢 Sticker বানানো
             const sticker = new Sticker(buffer, {
                 pack: randomPackName(),
                 author: "SOURAV_MD 💎",
                 type: StickerTypes.FULL,
                 quality: 85,
-                categories: ["🤖", "🔥", "🎭"],
+                categories: ["🔥","⚡","💎"],
             });
 
             const stickerBuffer = await sticker.build();
 
-            // Send sticker
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { sticker: stickerBuffer },
-                { quoted: m }
-            );
+            await sock.sendMessage(m.key.remoteJid, { sticker: stickerBuffer }, { quoted: m });
 
         } catch (err) {
             console.error("Sticker command error:", err);
