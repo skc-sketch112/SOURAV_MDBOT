@@ -1,42 +1,48 @@
-const { Sticker, StickerTypes } = require("wa-sticker-formatter");
+const { Sticker } = require("wa-sticker-formatter");
 
 module.exports = {
   name: "sticker",
-  alias: ["s"],
-  desc: "Convert image or short video to sticker",
-  category: "converter",
-  async exec({ m, sock }) {
+  command: ["sticker", "s"],
+  async execute(sock, m) {
     try {
-      // Must reply to an image or video
-      if (
-        !m.quoted ||
-        !(
-          m.quoted.mtype === "imageMessage" ||
-          m.quoted.mtype === "videoMessage"
-        )
-      ) {
-        return m.reply("⚠️ Reply to an image/video (max 10s) with .sticker");
+      console.log("🔎 FULL MESSAGE:", JSON.stringify(m, null, 2)); // Debug full msg
+
+      if (!m.quoted || !(m.quoted.message?.imageMessage || m.quoted.message?.videoMessage)) {
+        console.log("⚠️ No quoted media found!");
+        return await sock.sendMessage(
+          m.key.remoteJid,
+          { text: "⚠️ Reply to an image/video with .sticker" },
+          { quoted: m }
+        );
       }
 
-      // Download media buffer
-      const buffer = await m.quoted.download();
-      if (!buffer) return m.reply("❌ Failed to download media.");
+      console.log("✅ Quoted media found, downloading...");
+      const buffer = await sock.downloadMediaMessage(m.quoted);
 
-      // Create sticker
+      if (!buffer) {
+        console.log("❌ Media download failed!");
+        return await sock.sendMessage(
+          m.key.remoteJid,
+          { text: "❌ Couldn't download media" },
+          { quoted: m }
+        );
+      }
+
+      console.log("🎨 Building sticker...");
       const sticker = new Sticker(buffer, {
-        pack: "SOURAVMD",        // sticker pack name
-        author: "WhatsApp Bot",  // sticker author
-        type: StickerTypes.FULL, // full image (not cropped)
-        quality: 80,             // quality (0-100)
+        pack: "SOURAVMD",
+        author: "WhatsApp Bot",
+        type: "full",
+        quality: 70,
       });
 
-      // Send sticker
       const stickerBuffer = await sticker.toBuffer();
-      await sock.sendMessage(m.chat, { sticker: stickerBuffer }, { quoted: m });
+      console.log("✅ Sticker ready, sending...");
+      await sock.sendMessage(m.key.remoteJid, { sticker: stickerBuffer }, { quoted: m });
 
-    } catch (err) {
-      console.error("Sticker error:", err);
-      m.reply("❌ Could not create sticker. Try with another image/video.");
+    } catch (e) {
+      console.error("🔥 Sticker Error:", e);
+      await sock.sendMessage(m.key.remoteJid, { text: "❌ Error making sticker" }, { quoted: m });
     }
-  },
+  }
 };
