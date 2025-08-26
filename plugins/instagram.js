@@ -1,49 +1,70 @@
-const { Module } = require("../main");
-const { getBuffer } = require("./utils");
-const { fromBuffer } = require("file-type");
-const botConfig = require("../config");
+// =============== INSTAGRAM DOWNLOADER PLUGIN ===============
+// Command: .instagram <link>
+// Author: SOURAV_MD
+
 const axios = require("axios");
 
-const isFromMe = botConfig.MODE === "public" ? false : true;
+module.exports = {
+  name: "instagram",
+  command: ["instagram", "insta", "ig"],
 
-Module(
-  {
-    pattern: "insta ?(.*)",
-    fromMe: isFromMe,
-    desc: "Instagram post/reel/tv downloader",
-    usage: "insta link",
-    use: "download",
-  },
-  async (message, match) => {
-    let mediaLink = match[1] || message.reply_message?.text;
-    if (!mediaLink) return await message.sendReply("*Need Instagram link*");
-
+  async execute(sock, m, args) {
     try {
-      // 🔥 Your Render API endpoint
-      const res = await axios.get(
-        `https://instagramapi-fnwz.onrender.com/api/insta?url=${encodeURIComponent(mediaLink)}`
-      );
-
-      if (!res.data || !res.data.result || res.data.result.length === 0) {
-        return await message.sendReply("*Download failed or no media found!*");
-      }
-
-      const quotedMessage = message.reply_message
-        ? message.quoted
-        : message.data;
-
-      for (const mediaUrl of res.data.result) {
-        const mediaBuffer = await getBuffer(mediaUrl);
-        const { mime } = await fromBuffer(mediaBuffer);
-        await message.sendMessage(
-          mediaBuffer,
-          mime.includes("video") ? "video" : "image",
-          { quoted: quotedMessage }
+      if (!args[0]) {
+        return await sock.sendMessage(
+          m.key.remoteJid,
+          {
+            text: "⚠️ Please provide an Instagram link!\n\nExample: `.instagram https://www.instagram.com/reel/xyz/`",
+          },
+          { quoted: m }
         );
       }
-    } catch (e) {
-      console.error(e);
-      return await message.sendReply("_Server error, try again later!_");
+
+      const url = args[0];
+      // ✅ Working API
+      const api = `https://raganork-api.vercel.app/api/igdl?url=${encodeURIComponent(url)}`;
+
+      const { data } = await axios.get(api);
+
+      if (!data || !data.result || data.result.length === 0) {
+        return await sock.sendMessage(
+          m.key.remoteJid,
+          { text: "❌ Failed to fetch media. Please check the link or try again later." },
+          { quoted: m }
+        );
+      }
+
+      // একাধিক মিডিয়া থাকলে সব পাঠাবে
+      for (let item of data.result) {
+        if (item.type === "video") {
+          await sock.sendMessage(
+            m.key.remoteJid,
+            {
+              video: { url: item.url },
+              caption: "📥 Instagram Video Downloaded ✅",
+            },
+            { quoted: m }
+          );
+        } else if (item.type === "image") {
+          await sock.sendMessage(
+            m.key.remoteJid,
+            {
+              image: { url: item.url },
+              caption: "📥 Instagram Image Downloaded ✅",
+            },
+            { quoted: m }
+          );
+        }
+      }
+    } catch (err) {
+      console.error("Instagram Plugin Error:", err);
+      await sock.sendMessage(
+        m.key.remoteJid,
+        {
+          text: "❌ Error fetching Instagram media.\n" + err.message,
+        },
+        { quoted: m }
+      );
     }
-  }
-);
+  },
+};
