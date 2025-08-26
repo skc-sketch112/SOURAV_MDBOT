@@ -1,47 +1,35 @@
-const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
+const { writeFile } = require("fs");
+const { Sticker } = require("wa-sticker-formatter");
 
 module.exports = {
   name: "sticker",
-  command: ["sticker", "s"],
-  description: "Make sticker from image/video",
-
-  async execute(sock, m, args) {
+  alias: ["s"],
+  desc: "Convert image/video to sticker",
+  category: "converter",
+  async exec({ m, sock }) {
     try {
-      // quoted ba direct media
-      const quoted = m.quoted ? m.quoted : m;
-
-      const type = Object.keys(quoted.message)[0]; // imageMessage, videoMessage
-      if (type !== "imageMessage" && type !== "videoMessage") {
-        return sock.sendMessage(
-          m.chat,
-          { text: "⚠️ Reply or send an *image/video (max 10s)* with .sticker" },
-          { quoted: m }
-        );
+      // Check reply ache kina
+      if (!m.quoted || !(m.quoted.mtype === "imageMessage" || m.quoted.mtype === "videoMessage")) {
+        return m.reply("⚠️ Reply to an image/video (max 10s) with .sticker");
       }
 
-      // media download
-      const stream = await downloadContentFromMessage(
-        quoted.message[type],
-        type.includes("video") ? "video" : "image"
-      );
+      let buffer = await m.quoted.download(); // Download media
 
-      let buffer = Buffer.from([]);
-      for await (const chunk of stream) {
-        buffer = Buffer.concat([buffer, chunk]);
-      }
+      // Sticker object
+      let sticker = new Sticker(buffer, {
+        pack: "SOURAVMD",
+        author: "WhatsApp Bot",
+        type: "full",
+        quality: 70,
+      });
 
-      // send sticker
-      await sock.sendMessage(
-        m.chat,
-        { sticker: buffer },
-        { quoted: m }
-      );
+      // Send as sticker
+      const stickerBuffer = await sticker.toBuffer();
+      await sock.sendMessage(m.chat, { sticker: stickerBuffer }, { quoted: m });
 
     } catch (e) {
-      console.error("Sticker Error:", e);
-      await sock.sendMessage(
-        m.chat,
-        { text: "❌ Sticker convert failed, try again!" },
-        { quoted: m }
-      );
+      console.error(e);
+      m.reply("❌ Failed to create sticker, try again.");
     }
+  }
+};
