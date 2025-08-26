@@ -1,58 +1,49 @@
-// =============== INSTAGRAM DOWNLOADER PLUGIN ===============
-// Command: .instagram <link>
-// Author: SOURAV_MD
-
+const { Module } = require("../main");
+const { getBuffer } = require("./utils");
+const { fromBuffer } = require("file-type");
+const botConfig = require("../config");
 const axios = require("axios");
 
-module.exports = {
-  name: "instagram",
-  command: ["instagram", "insta", "ig"],
+const isFromMe = botConfig.MODE === "public" ? false : true;
 
-  async execute(sock, m, args) {
+Module(
+  {
+    pattern: "insta ?(.*)",
+    fromMe: isFromMe,
+    desc: "Instagram post/reel/tv downloader",
+    usage: "insta link",
+    use: "download",
+  },
+  async (message, match) => {
+    let mediaLink = match[1] || message.reply_message?.text;
+    if (!mediaLink) return await message.sendReply("*Need Instagram link*");
+
     try {
-      if (!args[0]) {
-        return await sock.sendMessage(m.key.remoteJid, {
-          text: "⚠️ Please provide an Instagram link!\n\nExample: `.instagram https://www.instagram.com/reel/xyz/`"
-        }, { quoted: m });
+      // 🔥 Your Render API endpoint
+      const res = await axios.get(
+        `https://instagramapi-fnwz.onrender.com/api/insta?url=${encodeURIComponent(mediaLink)}`
+      );
+
+      if (!res.data || !res.data.result || res.data.result.length === 0) {
+        return await message.sendReply("*Download failed or no media found!*");
       }
 
-      const url = args[0];
-      const api = `https://instagramapi-fnwz.onrender.com/insta?url=${encodeURIComponent(url)}`;
+      const quotedMessage = message.reply_message
+        ? message.quoted
+        : message.data;
 
-      const { data } = await axios.get(api);
-
-      if (!data || !data.url) {
-        return await sock.sendMessage(m.key.remoteJid, {
-          text: "❌ Failed to fetch media. Please check the link or try again later."
-        }, { quoted: m });
+      for (const mediaUrl of res.data.result) {
+        const mediaBuffer = await getBuffer(mediaUrl);
+        const { mime } = await fromBuffer(mediaBuffer);
+        await message.sendMessage(
+          mediaBuffer,
+          mime.includes("video") ? "video" : "image",
+          { quoted: quotedMessage }
+        );
       }
-
-      // যদি ভিডিও হয়
-      if (data.type === "video") {
-        await sock.sendMessage(m.key.remoteJid, {
-          video: { url: data.url },
-          caption: "📥 Instagram Video Downloaded ✅"
-        }, { quoted: m });
-      } 
-      // যদি ছবি হয়
-      else if (data.type === "image") {
-        await sock.sendMessage(m.key.remoteJid, {
-          image: { url: data.url },
-          caption: "📥 Instagram Image Downloaded ✅"
-        }, { quoted: m });
-      } 
-      // অন্য কিছু হলে
-      else {
-        await sock.sendMessage(m.key.remoteJid, {
-          text: "⚠️ Unsupported media type received."
-        }, { quoted: m });
-      }
-
-    } catch (err) {
-      console.error("Instagram Plugin Error:", err);
-      await sock.sendMessage(m.key.remoteJid, {
-        text: "❌ Error fetching Instagram media.\n" + err.message
-      }, { quoted: m });
+    } catch (e) {
+      console.error(e);
+      return await message.sendReply("_Server error, try again later!_");
     }
   }
-};
+);
