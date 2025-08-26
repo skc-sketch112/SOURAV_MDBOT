@@ -1,42 +1,35 @@
 module.exports = {
   name: "emojitext",
-  command: ["emojitext", "etext", "estyle"],
-  description: "Convert text into stylish emoji decorated format",
+  alias: ["etext", "emo"],
+  desc: "Convert text into emoji art",
+  category: "fun",
 
-  execute: async (sock, m, args) => {
+  async exec({ m, args }) {
     try {
-      if (!args[0]) {
-        return await sock.sendMessage(
-          m.key.remoteJid,
-          { text: "❌ Please provide text.\n👉 Example: .emojitext hello" },
-          { quoted: m }
-        );
+      if (args.length < 2) {
+        return m.reply("⚠️ Usage: `.emojitext 🙂 Sourav`");
       }
 
-      // Join all words after command
-      const inputText = args.join(" ");
+      const emoji = args[0]; // প্রথম argument হবে emoji
+      const text = args.slice(1).join(" ").toUpperCase(); // নাম/টেক্সট
 
-      // Different emoji styles
-      const styles = [
-        `✨🌸 ${inputText.split("").join(" ✨ ")} 🌸✨`,
-        `🔥💎 ${inputText.split("").join(" 💎 ")} 🔥`,
-        `🌈⭐ ${inputText.split("").join(" 🌟 ")} ⭐🌈`,
-        `🌹❤️ ${inputText.split("").join(" ❤️ ")} 🌹`,
-        `⚡💫 ${inputText.split("").join(" 💫 ")} ⚡`,
-        `🌙🌌 ${inputText.split("").join(" 🌌 ")} 🌙`,
-      ];
+      let output = "";
 
-      // Pick random style
-      const styledText = styles[Math.floor(Math.random() * styles.length)];
+      // প্রতিটা অক্ষরকে emoji দিয়ে গঠন করা হবে
+      for (let char of text) {
+        if (char === " ") {
+          output += "\n\n"; // space এর জন্য gap
+        } else {
+          output += `${emoji} `.repeat(5) + "\n"; // প্রতিটা অক্ষরের জন্য emoji line
+        }
+        output += "\n";
+      }
 
-      await sock.sendMessage(m.key.remoteJid, { text: styledText }, { quoted: m });
+      await m.reply(output.trim());
+
     } catch (err) {
-      console.error("❌ EmojiText plugin error:", err);
-      await sock.sendMessage(
-        m.key.remoteJid,
-        { text: "⚠️ Failed to generate emoji text." },
-        { quoted: m }
-      );
+      console.error("EmojiText Error:", err);
+      m.reply("❌ EmojiText বানানো গেল না।");
     }
-  },
+  }
 };
