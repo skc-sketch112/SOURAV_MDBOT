@@ -10,6 +10,7 @@
     "build": "npm install"
   },
   "dependencies": {
+    "genius-lyrics-api": "^3.2.0",
     "@whiskeysockets/baileys": "6.7.18",
     "@bochilteam/scraper": "^4.2.4",
     "axios": "1.7.2",
