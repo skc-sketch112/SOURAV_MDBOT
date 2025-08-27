@@ -5,7 +5,7 @@ const { MessageMedia } = require("whatsapp-web.js");
 
 module.exports = {
     name: "setstatus",
-    command: ["setstatus"], // Ensures .setstatus is the trigger
+    command: ["setstatus", "set status"], // Supports .setstatus and .set status
     description: "Automatically set a photo or video as WhatsApp status.",
 
     async execute(sock, m, args) {
@@ -14,6 +14,8 @@ module.exports = {
         let mediaType;
 
         try {
+            console.log(`[SetStatus] Received command: ${m.body} from ${jid}`);
+
             // Check if a URL is provided or a media message is replied to
             if (args[0] && (args[0].startsWith("http://") || args[0].startsWith("https://"))) {
                 // Handle URL input
@@ -26,22 +28,21 @@ module.exports = {
                     fs.mkdirSync(downloadsDir, { recursive: true });
                 }
 
-                mediaPath = path.join(downloadsDir, `${Date.now()}.${url.endsWith(".mp4") ? "mp4" : "jpg"}`);
+                // Determine file extension and type
+                const extension = url.match(/\.(jpg|jpeg|png|mp4)$/i)?.[1]?.toLowerCase();
+                if (!extension || !["jpg", "jpeg", "png", "mp4"].includes(extension)) {
+                    throw new Error("Unsupported media type. Use JPEG, PNG, or MP4.");
+                }
+                mediaType = extension === "mp4" ? "video/mp4" : "image/jpeg";
+                mediaPath = path.join(downloadsDir, `${Date.now()}.${extension}`);
+
+                // Download media
                 const response = await axios({
                     url,
                     method: "GET",
-                    responseType: "stream"
+                    responseType: "stream",
+                    timeout: 30000 // 30-second timeout
                 });
-
-                // Detect media type from headers or URL
-                const contentType = response.headers["content-type"];
-                if (contentType.includes("video")) {
-                    mediaType = "video/mp4";
-                } else if (contentType.includes("image")) {
-                    mediaType = "image/jpeg";
-                } else {
-                    throw new Error("Unsupported media type. Use JPEG, PNG, or MP4.");
-                }
 
                 const writer = fs.createWriteStream(mediaPath);
                 response.data.pipe(writer);
@@ -100,24 +101,6 @@ module.exports = {
                 throw new Error("Media file is too large. WhatsApp status supports up to ~100MB.");
             }
 
-            // For videos, check duration (WhatsApp status: max 30 seconds)
-            if (mediaType.includes("video")) {
-                const ffmpeg = require("fluent-ffmpeg");
-                const ffmpegPath = require("ffmpeg-static");
-                ffmpeg.setFfmpegPath(ffmpegPath);
-
-                const duration = await new Promise((resolve, reject) => {
-                    ffmpeg.ffprobe(mediaPath, (err, metadata) => {
-                        if (err) reject(err);
-                        resolve(metadata.format.duration);
-                    });
-                });
-
-                if (duration > 30) {
-                    throw new Error("Video is too long. WhatsApp status supports up to 30 seconds.");
-                }
-            }
-
             // Notify user
             await sock.sendMessage(
                 jid,
@@ -131,7 +114,7 @@ module.exports = {
             // Set status
             await sock.sendMessage("status@broadcast", {
                 [mediaType.includes("video") ? "video" : "image"]: media,
-                caption: args.join(" ") || "" // Optional caption from args
+                caption: args.join(" ") || "" // Optional caption
             });
 
             // Confirm success
