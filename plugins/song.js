@@ -1,4 +1,3 @@
-const youtubedl = require("youtube-dl-exec");
 const playdl = require("play-dl");
 const yts = require("yt-search");
 const fs = require("fs");
@@ -6,15 +5,17 @@ const path = require("path");
 
 module.exports = {
     name: "song",
-    command: ["song"], // Ensures .song is the trigger
-    description: "Download and send a song from YouTube as an MP3 file.",
+    command: ["song", "play"], // Supports .song and .play
+    description: "Download and send a song from YouTube as an MP3.",
 
     async execute(sock, m, args) {
         const jid = m.key.remoteJid;
+        console.log(`[Song] Received command: ${m.body} from ${jid}`);
+
         if (!args[0]) {
             return sock.sendMessage(
                 jid,
-                { text: "❌ Please provide a song name or URL.\nExample: `.song despacito` or `.song https://www.youtube.com/watch?v=kJQP7kiw5Fk`" },
+                { text: "❌ দয়া করে একটি গানের নাম বা URL দিন।\nউদাহরণ: `.song despacito` বা `.song https://www.youtube.com/watch?v=kJQP7kiw5Fk`" },
                 { quoted: m }
             );
         }
@@ -28,7 +29,6 @@ module.exports = {
             if (!fs.existsSync(downloadsDir)) {
                 fs.mkdirSync(downloadsDir, { recursive: true });
             }
-
             const outFile = path.join(downloadsDir, `${Date.now()}.mp3`);
 
             // Determine if query is URL or search term
@@ -39,7 +39,7 @@ module.exports = {
                 console.log(`[Song] Searching for: ${query}`);
                 const searchResults = await yts(query);
                 if (!searchResults.videos || searchResults.videos.length === 0) {
-                    return sock.sendMessage(jid, { text: "❌ No results found for your query." }, { quoted: m });
+                    return sock.sendMessage(jid, { text: "❌ আপনার কুয়েরির জন্য কোন ফলাফল পাওয়া যায়নি।" }, { quoted: m });
                 }
                 url = searchResults.videos[0].url;
                 console.log(`[Song] Selected: ${searchResults.videos[0].title} (${url})`);
@@ -48,43 +48,39 @@ module.exports = {
             // Notify user
             await sock.sendMessage(
                 jid,
-                { text: `🎶 Downloading song...\n⏳ Please wait (this may take a few seconds)...` },
+                { text: `🎶 *${query}* ডাউনলোড হচ্ছে...\n⏳ দয়া করে অপেক্ষা করুন...` },
                 { quoted: m }
             );
 
-            // Try youtube-dl-exec first
+            // Download with retry logic
             let downloaded = false;
-            try {
-                console.log("[Song] Trying youtube-dl-exec");
-                await youtubedl(url, {
-                    extractAudio: true,
-                    audioFormat: "mp3",
-                    output: outFile,
-                    audioQuality: 0, // Best quality
-                    noCheckCertificate: true,
-                    timeout: 300000 // 5-minute timeout
-                });
-                downloaded = true;
-                console.log(`[Song] Downloaded with youtube-dl-exec: ${outFile}`);
-            } catch (ytdlError) {
-                console.error("[Song] youtube-dl-exec Error:", ytdlError.message);
-            }
+            let attempts = 0;
+            const maxAttempts = 2;
 
-            // Fallback to play-dl if youtube-dl-exec fails
-            if (!downloaded) {
-                console.log("[Song] Falling back to play-dl");
-                if (playdl.is_expired()) await playdl.refreshToken();
-                const stream = await playdl.stream(url, { quality: 2 }); // Highest audio quality
+            while (attempts < maxAttempts && !downloaded) {
+                try {
+                    if (playdl.is_expired()) await playdl.refreshToken();
+                    const stream = await playdl.stream(url, { quality: 2 }); // Highest audio quality
 
-                // Save stream to file
-                const writer = fs.createWriteStream(outFile);
-                stream.stream.pipe(writer);
+                    const writer = fs.createWriteStream(outFile);
+                    stream.stream.pipe(writer);
 
-                await new Promise((resolve, reject) => {
-                    writer.on("finish", resolve);
-                    writer.on("error", reject);
-                });
-                console.log(`[Song] Downloaded with play-dl: ${outFile}`);
+                    await new Promise((resolve, reject) => {
+                        writer.on("finish", resolve);
+                        writer.on("error", reject);
+                    });
+                    downloaded = true;
+                    console.log(`[Song] Downloaded: ${outFile}`);
+                } catch (err) {
+                    console.error(`[Song] Attempt ${attempts + 1} failed: ${err.message}`);
+                    attempts++;
+                    if (attempts < maxAttempts) {
+                        console.log("[Song] Retrying...");
+                        await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay
+                    } else {
+                        throw new Error(`Download failed after ${maxAttempts} attempts: ${err.message}`);
+                    }
+                }
             }
 
             // Verify file
@@ -92,7 +88,7 @@ module.exports = {
                 throw new Error("Downloaded audio file is missing or empty.");
             }
 
-            // Get video title for filename
+            // Get video title
             const videoInfo = await yts({ videoId: url.split("v=")[1] || url });
             const title = videoInfo.title || "song";
 
@@ -114,7 +110,7 @@ module.exports = {
             console.error("[Song] Error:", err.message);
             await sock.sendMessage(
                 jid,
-                { text: `❌ Failed to process song.\nError: ${err.message}\nTry a different song name or URL.` },
+                { text: `❌ গান প্রক্রিয়া করতে ব্যর্থ।\nকারণ: ${err.message}\nঅন্য গানের নাম বা URL চেষ্টা করুন।` },
                 { quoted: m }
             );
         }
