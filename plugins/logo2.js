@@ -4,22 +4,50 @@ const cheerio = require("cheerio");
 // Helper function to add delay (mitigate rate limits)
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+// Helper function for FlamingText API (primary)
+async function createFlamingText(styleId, text) {
+    try {
+        console.log(`[FlamingText] Requesting style: ${styleId}`);
+        await sleep(1000); // 1-second delay
+        const response = await axios.get(`https://www.flamingtext.com/netfu/tmp${styleId}/flamingtext.jpg?script=flaming-logo&text=${encodeURIComponent(text)}`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36'
+            },
+            timeout: 30000 // 30-second timeout
+        });
+        if (response.status !== 200) {
+            throw new Error("FlamingText request failed.");
+        }
+        return response.request.res.responseUrl;
+    } catch (error) {
+        throw new Error(`FlamingText API Error: ${error.message}`);
+    }
+}
+
 // Helper function for PhotoOxy API
 async function createPhotoOxy(url, text) {
     try {
         console.log(`[PhotoOxy] Requesting URL: ${url}`);
-        await sleep(1000); // 1-second delay to avoid rate limits
+        await sleep(1500); // 1.5-second delay
         const response = await axios.post(url, `text_1=${encodeURIComponent(text)}&login=OK`, {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36'
-            }
+            },
+            timeout: 30000
         });
         console.log(`[PhotoOxy] Response Status: ${response.status}`);
         const $ = cheerio.load(response.data);
-        // Updated selector to match current PhotoOxy structure
-        const resultUrl = $('img.result-image').attr('src') || $('div.thumbnail a').attr('href');
-        if (!resultUrl) throw new Error("Could not find image URL in PhotoOxy response.");
+        // Updated selectors for robustness
+        const resultUrl = $('img.result-image').attr('src') ||
+                          $('div.thumbnail a').attr('href') ||
+                          $('img#generated-image').attr('src') ||
+                          $('div.result img').attr('src') ||
+                          $('img[src*="/images/"]').attr('src');
+        if (!resultUrl) {
+            console.log(`[PhotoOxy] HTML Response: ${response.data.substring(0, 500)}...`);
+            throw new Error("Could not find image URL in PhotoOxy response.");
+        }
         return resultUrl.startsWith('http') ? resultUrl : `https://photooxy.com${resultUrl}`;
     } catch (error) {
         throw new Error(`PhotoOxy API Error: ${error.message}`);
@@ -30,23 +58,23 @@ async function createPhotoOxy(url, text) {
 async function createTextPro(url, text) {
     try {
         console.log(`[TextPro] Requesting URL: ${url}`);
-        await sleep(1000); // 1-second delay
-        // Step 1: Get token and cookies
+        await sleep(1500); // 1.5-second delay
         const home = await axios.get(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36'
-            }
+            },
+            timeout: 30000
         });
         const $ = cheerio.load(home.data);
-        const token = $('#token').val();
-        const build_server = $('#build_server').val();
-        const build_server_id = $('#build_server_id').val();
+        const token = $('#token').val() || $('input[name="token"]').val();
+        const build_server = $('#build_server').val() || $('input[name="build_server"]').val();
+        const build_server_id = $('#build_server_id').val() || $('input[name="build_server_id"]').val();
         if (!token || !build_server || !build_server_id) {
+            console.log(`[TextPro] HTML Response: ${home.data.substring(0, 500)}...`);
             throw new Error("Missing token or server details in TextPro response.");
         }
         const cookies = home.headers['set-cookie']?.join('; ') || '';
 
-        // Step 2: Post text to generate image
         const post = await axios.post('https://textpro.me/effect/create-image', new URLSearchParams({
             'text[]': text,
             'submit': 'Go',
@@ -58,11 +86,15 @@ async function createTextPro(url, text) {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36',
                 'Cookie': cookies
-            }
+            },
+            timeout: 30000
         });
-        console.log(`[TextPro] POST Response:`, post.data);
+        console.log(`[TextPro] POST Response Status: ${post.status}`);
         const result = post.data;
-        if (!result || !result.image) throw new Error("Could not get image URL from TextPro response.");
+        if (!result || !result.image) {
+            console.log(`[TextPro] POST Response: ${JSON.stringify(post.data, null, 2).substring(0, 500)}...`);
+            throw new Error("Could not get image URL from TextPro response.");
+        }
         return `https://textpro.me${result.image}`;
     } catch (error) {
         throw new Error(`TextPro API Error: ${error.message}`);
@@ -72,15 +104,25 @@ async function createTextPro(url, text) {
 module.exports = {
     name: "logo2",
     command: ["logo2", "logov2", "textlogo"],
-    description: "Generate 35+ realistic text logos with a reliable multi-API system.",
+    description: "Generate realistic text logos with a reliable multi-API system.",
 
     async execute(sock, m, args) {
         const jid = m.key.remoteJid;
         const [style, ...textArr] = args;
         const text = textArr.join(" ");
 
-        // List of supported styles with updated URLs (verified as of August 2025)
+        // Validate input
+        if (!style || !text) {
+            const styleList = Object.keys(styles).map(s => `• ${s}`).join('\n');
+            const helpText = `⚠️ command used wrongly please ensure you used a correct comnd।\n\n*ব্যবহারের নিয়ম:*\n.logo2 <style> <text>\n\n*উদাহরণ:*\n.logo2 neon Hello World\n\n*উপলব্ধ স্টাইলসমূহ:*\n${styleList}`;
+            return await sock.sendMessage(jid, { text: helpText }, { quoted: m });
+        }
+
         const styles = {
+            // FlamingText Styles (primary, reliable)
+            flaming: { api: 'flamingtext', styleId: '15/1' },
+            glow: { api: 'flamingtext', styleId: '16/2' },
+            neon: { api: 'flamingtext', styleId: '20/3' },
             // PhotoOxy Styles
             shadow: { api: 'photooxy', url: 'https://photooxy.com/logo-and-text-effects/shadow-text-effect-in-the-sky-394.html' },
             cup: { api: 'photooxy', url: 'https://photooxy.com/logo-and-text-effects/write-text-on-the-cup-392.html' },
@@ -90,11 +132,9 @@ module.exports = {
             naruto: { api: 'photooxy', url: 'https://photooxy.com/manga-and-anime/make-naruto-banner-online-free-378.html' },
             lovemsg: { api: 'photooxy', url: 'https://photooxy.com/logo-and-text-effects/create-a-picture-of-love-message-377.html' },
             grass: { api: 'photooxy', url: 'https://photooxy.com/logo-and-text-effects/make-quotes-under-grass-376.html' },
-            glow: { api: 'photooxy', url: 'https://photooxy.com/logo-and-text-effects/glow-neon-light-text-effect-online-882.html' },
             sweet: { api: 'photooxy', url: 'https://photooxy.com/logo-and-text-effects/sweet-candy-text-effect-358.html' },
             wood: { api: 'photooxy', url: 'https://photooxy.com/logo-and-text-effects/carved-wood-effect-online-171.html' },
             // TextPro Styles
-            neon: { api: 'textpro', url: 'https://textpro.me/create-3d-neon-light-text-effect-online-1028.html' },
             blackpink: { api: 'textpro', url: 'https://textpro.me/create-blackpink-logo-style-online-1001.html' },
             joker: { api: 'textpro', url: 'https://textpro.me/create-logo-joker-online-934.html' },
             metallic: { api: 'textpro', url: 'https://textpro.me/create-a-metallic-text-effect-free-online-1041.html' },
@@ -117,15 +157,8 @@ module.exports = {
             thunder: { api: 'textpro', url: 'https://textpro.me/online-thunder-text-effect-generator-1031.html' },
             carbon: { api: 'textpro', url: 'https://textpro.me/carbon-text-effect-833.html' },
             blood: { api: 'textpro', url: 'https://textpro.me/horror-blood-text-effect-online-883.html' },
-            toxic: { api: 'textpro', url: 'https://textpro.me/toxic-text-effect-online-901.html' },
+            toxic: { api: 'textpro', url: 'https://textpro.me/toxic-text-effect-online-901.html' }
         };
-
-        // Validate input
-        if (!style || !text) {
-            const styleList = Object.keys(styles).map(s => `• ${s}`).join('\n');
-            const helpText = `⚠️ কমান্ড ভুলভাবে ব্যবহার করা হয়েছে।\n\n*ব্যবহারের নিয়ম:*\n.logo2 <style> <text>\n\n*উদাহরণ:*\n.logo2 neon Hello World\n\n*উপলব্ধ স্টাইলসমূহ:*\n${styleList}`;
-            return await sock.sendMessage(jid, { text: helpText }, { quoted: m });
-        }
 
         const selectedStyle = styles[style.toLowerCase()];
         if (!selectedStyle) {
@@ -137,52 +170,57 @@ module.exports = {
             );
         }
 
-        // Inform user that processing has started
         await sock.sendMessage(jid, { text: `⏳ আপনার *${style.toUpperCase()}* লোগো তৈরি করা হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন।` }, { quoted: m });
 
         let imageUrl;
-        try {
-            // Primary API attempt
-            if (selectedStyle.api === 'photooxy') {
-                imageUrl = await createPhotoOxy(selectedStyle.url, text);
-            } else {
-                imageUrl = await createTextPro(selectedStyle.url, text);
-            }
+        let attemptCount = 0;
+        const maxAttempts = 2;
 
-            // Send the generated image
-            await sock.sendMessage(
-                jid,
-                {
-                    image: { url: imageUrl },
-                    caption: `✨ আপনার *${style.toUpperCase()}* স্টাইলের লোগো তৈরি!\n\n📝 লেখা: *${text}*`
-                },
-                { quoted: m }
-            );
-        } catch (err) {
-            console.error("[Main Error]:", err.message);
-            // Fallback to the other API
+        // Try APIs in order: FlamingText -> PhotoOxy -> TextPro
+        while (attemptCount < maxAttempts) {
             try {
-                const fallbackStyle = styles[style.toLowerCase() === 'shadow' ? 'neon' : 'shadow'];
-                if (fallbackStyle.api === 'photooxy') {
-                    imageUrl = await createPhotoOxy(fallbackStyle.url, text);
+                if (selectedStyle.api === 'flamingtext') {
+                    imageUrl = await createFlamingText(selectedStyle.styleId, text);
+                } else if (selectedStyle.api === 'photooxy') {
+                    imageUrl = await createPhotoOxy(selectedStyle.url, text);
                 } else {
-                    imageUrl = await createTextPro(fallbackStyle.url, text);
+                    imageUrl = await createTextPro(selectedStyle.url, text);
                 }
+
+                // Validate image URL
+                const response = await axios.head(imageUrl, { timeout: 10000 });
+                if (response.status !== 200) {
+                    throw new Error("Invalid image URL returned.");
+                }
+
+                // Send the generated image
                 await sock.sendMessage(
                     jid,
                     {
                         image: { url: imageUrl },
-                        caption: `✨ [Fallback] আপনার *${style.toUpperCase()}* স্টাইলের লোগো তৈরি!\n\n📝 লেখা: *${text}*`
+                        caption: `✨ your*${style.toUpperCase()}* created sucessfully!\n\n📝 লেখা: *${text}*`
                     },
                     { quoted: m }
                 );
-            } catch (fallbackErr) {
-                console.error("[Fallback Error]:", fallbackErr.message);
-                await sock.sendMessage(
-                    jid,
-                    { text: `❌ দুঃখিত, লোগো তৈরি করতে একটি সমস্যা হয়েছে।\n\n*কারণ:* ${fallbackErr.message}\n\nঅনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন অথবা অন্য কোনো স্টাইল ব্যবহার করুন।` },
-                    { quoted: m }
-                );
+                return; // Success, exit
+            } catch (err) {
+                console.error(`[Attempt ${attemptCount + 1}] Error:`, err.message);
+                attemptCount++;
+                if (attemptCount < maxAttempts) {
+                    // Switch to fallback style
+                    const fallbackStyle = styles[style.toLowerCase() === 'flaming' ? 'neon' : style.toLowerCase() === 'neon' ? 'shadow' : 'flaming'];
+                    console.log(`[Fallback] Trying ${fallbackStyle.api} with style: ${style}`);
+                    selectedStyle.api = fallbackStyle.api;
+                    selectedStyle.url = fallbackStyle.url;
+                    selectedStyle.styleId = fallbackStyle.styleId;
+                    await sleep(2000); // Delay before retry
+                } else {
+                    await sock.sendMessage(
+                        jid,
+                        { text: `❌ Sorry , there is a problem to install logo।\n\n*কারণ:* ${err.message}\n\nঅনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন অথবা অন্য কোনো স্টাইল (যেমন: flaming, neon) ব্যবহার করুন।` },
+                        { quoted: m }
+                    );
+                }
             }
         }
     }
