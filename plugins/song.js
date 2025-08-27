@@ -1,13 +1,17 @@
-// song.js - Advanced YouTube Audio Downloader Plugin using @bochilteam/scraper
-const { youtube } = require("@bochilteam/scraper");
-const axios = require("axios");
+// song.js - Advanced YouTube Audio Downloader Plugin
+const ytdl = require("ytdl-core");
+const ytSearch = require("yt-search");
 const fs = require("fs");
 const path = require("path");
+const ffmpeg = require("fluent-ffmpeg");
+const ffmpegPath = require("ffmpeg-static");
+
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 module.exports = {
   name: "song",
   command: ["song", "play", "music"],
-  description: "Download and send MP3 audio from YouTube using scraper.",
+  description: "Download and send MP3 audio from YouTube.",
 
   async execute(sock, m, args, { axios, fetch }) {
     const jid = m.key.remoteJid;
@@ -18,42 +22,46 @@ module.exports = {
     }
 
     const query = args.join(" ");
+    let attempts = 0;
+    const maxAttempts = 3;
+
     try {
-      // Search using scraper
-      const searchResults = await youtube(query, { limit: 5 }); // Get 5 results for fallback
-      if (!searchResults.length) {
-        return sock.sendMessage(jid, { text: "❌ কোন ফলাফল পাওয়া যায়নি।" }, { quoted: m });
+      // Search or validate URL
+      let url;
+      let title = "Unknown Title";
+      if (ytdl.validateURL(query)) {
+        url = query;
+        const info = await ytdl.getInfo(url);
+        title = info.videoDetails.title;
+      } else {
+        console.log(`[Song] Searching for: ${query}`);
+        const search = await ytSearch(query);
+        if (!search.videos.length) {
+          return sock.sendMessage(jid, { text: "❌ কোন ফলাফল পাওয়া যায়নি।" }, { quoted: m });
+        }
+        url = search.videos[0].url;
+        title = search.videos[0].title;
+        console.log(`[Song] Selected: ${title} (${url})`);
       }
 
-      let audioUrl = searchResults[0].audio[0].url;
-      let title = searchResults[0].title || "Unknown Title";
-      let attempt = 0;
-      const maxAttempts = searchResults.length;
+      // Notify user
+      await sock.sendMessage(jid, { text: `🎶 *${title}* ডাউনলোড হচ্ছে...\n⏳ দয়া করে অপেক্ষা করুন...` }, { quoted: m });
 
-      while (attempt < maxAttempts) {
+      // Create downloads folder
+      const downloadsDir = path.join(__dirname, "../downloads");
+      if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
+      const outFile = path.join(downloadsDir, `${Date.now()}.mp3`);
+
+      while (attempts < maxAttempts) {
         try {
-          console.log(`[Song] Attempting download from: ${audioUrl}`);
-          // Notify user
-          await sock.sendMessage(jid, { text: `🎶 *${title}* ডাউনলোড হচ্ছে...\n⏳ দয়া করে অপেক্ষা করুন...` }, { quoted: m });
-
-          // Create downloads folder
-          const downloadsDir = path.join(__dirname, "../downloads");
-          if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
-          const outFile = path.join(downloadsDir, `${Date.now()}.mp3`);
-
-          // Download MP3
-          const response = await axios({
-            url: audioUrl,
-            method: "GET",
-            responseType: "stream",
-            timeout: 60000 // 60-second timeout
-          });
-
-          const writer = response.data.pipe(fs.createWriteStream(outFile));
-
+          const stream = ytdl(url, { filter: "audioonly", quality: "highestaudio" });
           await new Promise((resolve, reject) => {
-            writer.on("finish", resolve);
-            writer.on("error", reject);
+            ffmpeg(stream)
+              .audioBitrate(128)
+              .format("mp3")
+              .save(outFile)
+              .on("end", resolve)
+              .on("error", reject);
           });
 
           // Verify file
@@ -73,11 +81,13 @@ module.exports = {
           console.log(`[Song] Cleaned up: ${outFile}`);
           return; // Success
         } catch (err) {
-          console.error(`[Song] Download attempt ${attempt + 1} failed: ${err.message}`);
-          attempt++;
-          if (attempt < maxAttempts) {
-            audioUrl = searchResults[attempt].audio[0].url;
-            title = searchResults[attempt].title;
+          console.error(`[Song] Attempt ${attempts + 1} failed: ${err.message}`);
+          attempts++;
+          if (attempts < maxAttempts) {
+            const search = await ytSearch(query);
+            url = search.videos[attempts % search.videos.length].url;
+            title = search.videos[attempts % search.videos.length].title;
+            console.log(`[Song] Retrying with: ${title} (${url})`);
           } else {
             throw new Error("All download attempts failed.");
           }
