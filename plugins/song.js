@@ -1,98 +1,63 @@
-const { default: makeWASocket } = require("@whiskeysockets/baileys");
-const ytdl = require("@distube/ytdl-core");
-const yts = require("yt-search");
 const fs = require("fs");
 const path = require("path");
-const { pipeline } = require("stream");
+const ytdl = require("ytdl-core");
+const yts = require("yt-search");
+const { MessageMedia } = require("whatsapp-web.js");
+const ffmpeg = require("fluent-ffmpeg");
 
 module.exports = {
   name: "song",
-  command: ["song", "music"],
-  description: "Download a song from YouTube by name or URL.",
+  command: ["song", "playsong", "play"],
+  description: "Search and send songs from YouTube",
 
-  async execute(sock, m, args) {
-    const jid = m.key.remoteJid;
-    console.log(`[Song] Command received at ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}: ${m.body} from ${jid}`);
+  async execute(sock, msg, args) {
+    const jid = msg.key.remoteJid;
+    const query = args.join(" ");
+
+    if (!query) {
+      return sock.sendMessage(jid, { text: "❌ Please provide a song name after the command." }, { quoted: msg });
+    }
 
     try {
-      if (!args[0]) {
-        return sock.sendMessage(jid, { text: "❌ Please provide a song name or YouTube link.\nExample: `.song despacito` or `.song https://youtube.com/..." }, { quoted: m });
+      // Search YouTube for song
+      const searchResult = await yts(query);
+      if (!searchResult.videos.length) {
+        return sock.sendMessage(jid, { text: "❌ No results found for your query." }, { quoted: msg });
       }
 
-      const query = args.join(" ");
-      console.log(`[Song] Processing query: ${query}`);
+      const video = searchResult.videos[0];
+      const url = video.url;
 
-      let url = query;
-      if (!ytdl.validateURL(query)) {
-        console.log("[Song] Performing YouTube search...");
-        const search = await yts(query);
-        if (!search.videos || search.videos.length === 0) {
-          throw new Error("No results found. Try a different query.");
-        }
-        url = search.videos[0].url;
-      }
+      // Stream audio from YouTube
+      const stream = ytdl(url, { filter: "audioonly", quality: "highestaudio" });
 
-      console.log(`[Song] Using URL: ${url}`);
-      const info = await ytdl.getInfo(url, {
-        requestOptions: {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-          },
-        },
-      });
-      const title = info.videoDetails.title.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 50);
-      const audioFormat = ytdl.chooseFormat(info.formats, { quality: "highestaudio" });
-      if (!audioFormat) {
-        throw new Error("No audio format available.");
-      }
+      // Temporary file path to save mp3
+      const tempFilePath = path.join(__dirname, `../downloads/song_${Date.now()}.mp3`);
 
-      const downloadsDir = path.join(__dirname, "../downloads");
-      if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
-      const tempFile = path.join(downloadsDir, `${title}_${Date.now()}.mp3`);
-      const stream = ytdl(url, {
-        filter: "audioonly",
-        quality: "highestaudio",
-        highWaterMark: 1 << 25,
-        requestOptions: {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-          },
-        },
-      });
-      const writer = fs.createWriteStream(tempFile);
-
-      stream.on("progress", (chunkLength, downloaded, total) => {
-        const percent = (downloaded / total * 100).toFixed(2);
-        console.log(`[Song] Download progress: ${percent}% (${downloaded}/${total} bytes)`);
-      });
-
-      stream.on("error", (err) => {
-        throw new Error(`Stream error: ${err.message}`);
-      });
-
+      // Convert stream to mp3
       await new Promise((resolve, reject) => {
-        pipeline(stream, writer, (err) => (err ? reject(err) : resolve()));
+        ffmpeg(stream)
+          .audioBitrate(128)
+          .format("mp3")
+          .save(tempFilePath)
+          .on("end", resolve)
+          .on("error", reject);
       });
 
-      const fileSize = fs.statSync(tempFile).size;
-      if (fileSize < 1024 || fileSize > 16 * 1024 * 1024) {
-        throw new Error("File too small or exceeds WhatsApp limit (16MB).");
-      }
+      // Read mp3 and send as WhatsApp media
+      const media = MessageMedia.fromFilePath(tempFilePath);
+      const caption = `🎵 *${video.title}*
+📺 ${video.url}
 
-      console.log(`[Song] Saved temp file: ${tempFile}, size: ${fileSize / 1024}KB`);
-      await sock.sendMessage(jid, {
-        audio: { url: tempFile },
-        mimetype: "audio/mpeg",
-        ptt: false,
-      }, { quoted: m });
+Requested by: @${msg.key.participant?.split("@")[0] || jid.split("@")[0]}`;
+      await sock.sendMessage(jid, media, { caption, quoted: msg, mentions: [msg.key.participant] });
 
-      fs.unlinkSync(tempFile);
-      console.log(`[Song] Cleaned up: ${tempFile}`);
+      // Cleanup temp file
+      fs.unlinkSync(tempFilePath);
 
-    } catch (err) {
-      console.error("[Song Error]:", err.message, err.stack);
-      if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
-      await sock.sendMessage(jid, { text: `❌ Failed to download song.\nError: ${err.message}` }, { quoted: m });
+    } catch (error) {
+      console.error("Song Plugin Error:", error);
+      await sock.sendMessage(jid, { text: "❌ Failed to fetch or send the song. Please try again later." }, { quoted: msg });
     }
-  }
-}
+  },
+};
