@@ -221,6 +221,7 @@ Type *.menu* to explore all commands! 🚀
     let command = commands.get(cmd);
     if (command && typeof command.execute === "function") {
       try {
+        console.log(`[Command] Attempting to execute: ${cmd} from ${m.key.remoteJid}`);
         await command.execute(sock, m, args, { axios, fetch });
         console.log(`⚡ Command executed: ${cmd}`);
       } catch (err) {
@@ -232,7 +233,7 @@ Type *.menu* to explore all commands! 🚀
         );
       }
     } else {
-      console.log(`[Command] Unknown command: ${cmd}`);
+      console.log(`[Command] Unknown command: ${cmd} from ${m.key.remoteJid}`);
     }
   });
 
