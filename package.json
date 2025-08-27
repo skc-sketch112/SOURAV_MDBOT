@@ -22,7 +22,7 @@
     "@distube/ytdl-core": "^4.16.12",
     "play-dl": "^1.9.7",
     "ytdl-core": "^4.11.5",
-    "youtube-search-api": "^2.10.1",
+    "youtube-search-api": "^2.0.1",
     "yt-search": "2.10.1",
     "soundcloud-downloader": "0.2.4",
     "wa-sticker-formatter": "4.4.4",
