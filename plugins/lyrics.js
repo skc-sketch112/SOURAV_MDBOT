@@ -1,46 +1,35 @@
-// ghibliart.js
-const fs = require("fs");
-const path = require("path");
-const OpenAI = require("openai");
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// lyrics.js
+const { getLyrics } = require("genius-lyrics-api");
+const axios = require("axios");
 
 module.exports = {
-  name: "ghibli",
-  command: ["ghibli", "ghibliart"],
-  description: "Transform any image into Ghibli-style art",
+  name: "lyrics",
+  command: ["lyrics", "songlyrics"],
+  description: "Fetch song lyrics (any language)",
 
   async execute(sock, msg, args) {
     const jid = msg.key.remoteJid;
     try {
-      const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-      if (!quoted || !quoted.imageMessage) {
-        return sock.sendMessage(jid, { text: "🖼️ Reply to an *image* to transform it into Studio Ghibli art." }, { quoted: msg });
-      }
+      if (!args[0]) return sock.sendMessage(jid, { text: "❌ Usage: .lyrics <song name>" }, { quoted: msg });
 
-      // Download image
-      const buffer = await sock.downloadMediaMessage({ message: quoted });
-      const filePath = path.join(__dirname, `../downloads/ghibli_${Date.now()}.jpg`);
-      fs.writeFileSync(filePath, buffer);
-
-      // Transform with OpenAI
-      const result = await openai.images.edits({
-        model: "gpt-image-1",
-        image: fs.createReadStream(filePath),
-        prompt: "Transform this into a magical Studio Ghibli-style art, dreamy colors, anime aesthetic.",
-        size: "1024x1024",
+      const query = args.join(" ");
+      let lyrics = await getLyrics({
+        apiKey: process.env.GENIUS_ACCESS_TOKEN,
+        title: query,
+        optimizeQuery: true,
       });
 
-      fs.unlinkSync(filePath);
+      if (!lyrics) {
+        // fallback: use lyrics.ovh (free)
+        const res = await axios.get(`https://api.lyrics.ovh/v1/${query}`);
+        lyrics = res.data.lyrics || "❌ Lyrics not found.";
+      }
 
-      await sock.sendMessage(jid, {
-        image: { url: result.data[0].url },
-        caption: "✨ Ghibli Art Transformation ✨",
-      }, { quoted: msg });
+      await sock.sendMessage(jid, { text: `📑 *Lyrics for ${query}*:\n\n${lyrics}` }, { quoted: msg });
 
     } catch (err) {
-      console.error("Ghibli Art Error:", err);
-      await sock.sendMessage(jid, { text: "❌ Failed to generate Ghibli art." }, { quoted: msg });
+      console.error("Lyrics Error:", err);
+      await sock.sendMessage(jid, { text: "❌ Failed to fetch lyrics." }, { quoted: msg });
     }
   }
 };
