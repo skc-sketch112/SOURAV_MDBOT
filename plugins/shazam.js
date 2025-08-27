@@ -1,47 +1,43 @@
 // plugins/shazam.js
 const { downloadMediaMessage } = require("@whiskeysockets/baileys");
-const { Shazam } = require("node-shazam");
+const Shazam = require("node-shazam");
 
 module.exports = {
   name: "shazam",
-  command: ["shazam", "findsong", "whatmusic"],
-  description: "Identify any song from a voice note or audio.",
+  command: ["shazam", "findsong"],
+  description: "Identify any song from audio.",
 
   async execute(sock, msg, args) {
     const jid = msg.key.remoteJid;
 
     try {
-      if (!msg.message.audioMessage && !msg.message.videoMessage) {
-        return sock.sendMessage(jid, { text: "🎵 Please reply to an *audio/voice note* to recognize the song." }, { quoted: msg });
+      const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+      const audioMsg = msg.message?.audioMessage || quoted?.audioMessage;
+
+      if (!audioMsg) {
+        return sock.sendMessage(jid, { text: "🎵 Please reply to an *audio message*." }, { quoted: msg });
       }
 
-      // Download media buffer
       const buffer = await downloadMediaMessage(
-        msg,
+        { message: quoted || msg.message },
         "buffer",
         {},
-        { reuploadRequest: sock.waUploadToServer }
+        { reuploadRequest: sock.updateMediaMessage }
       );
 
-      // Run Shazam recognition
-      const shazam = new Shazam();
-      const result = await shazam.recognizeSong(buffer);
+      const song = await Shazam.identifySong(buffer);
 
-      if (!result || !result.track) {
-        return sock.sendMessage(jid, { text: "❌ Couldn’t recognize the song. Try again with clearer audio." }, { quoted: msg });
+      if (!song || !song.track) {
+        return sock.sendMessage(jid, { text: "⚠️ Couldn’t identify this song." }, { quoted: msg });
       }
 
-      const track = result.track;
-      let response = `🎶 *Song Found!*\n\n`;
-      response += `🎤 Artist: ${track.subtitle}\n`;
-      response += `🎵 Title: ${track.title}\n`;
-      response += track.url ? `🔗 Link: ${track.url}` : "";
-
-      await sock.sendMessage(jid, { text: response }, { quoted: msg });
+      await sock.sendMessage(jid, {
+        text: `🎶 *${song.track.title}*\n👤 ${song.track.subtitle}\n🔗 ${song.track.url}`
+      }, { quoted: msg });
 
     } catch (err) {
-      console.error("[Shazam Error]:", err);
-      await sock.sendMessage(jid, { text: "⚠️ Failed to recognize song. Please try again." }, { quoted: msg });
+      console.error("Shazam Error:", err);
+      await sock.sendMessage(jid, { text: "❌ Failed to identify song." }, { quoted: msg });
     }
   }
 };
