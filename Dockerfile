@@ -1,4 +1,4 @@
-# Dockerfile for SouravMD Bot
+# # Dockerfile for SouravMD Bot
 FROM node:20
 
 # Set working directory
@@ -24,9 +24,8 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Set environment variables (optional, can be overridden in Render)
-ENV NODE_ENV=production
-ENV HTTP_PROXY=http://your-proxy:port  # Replace with a valid proxy or remove
+# Environment variables will be set via Render dashboard
+# No ENV lines here; use Render's Environment tab instead
 
 # Command to run the bot
 CMD ["npm", "run", "dev"]
