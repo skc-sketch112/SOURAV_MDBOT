@@ -10,7 +10,7 @@
     "build": "npm install"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "6.7.9",
+    "@whiskeysockets/baileys": "6.7.18",
     "@bochilteam/scraper": "^4.2.4",
     "axios": "1.7.2",
     "cheerio": "1.0.0-rc.12",
