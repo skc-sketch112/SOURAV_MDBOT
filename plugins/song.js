@@ -1,17 +1,13 @@
-// song.js - Advanced YouTube Audio Downloader Plugin
-const ytdl = require("ytdl-core");
-const playdl = require("play-dl");
-const ytSearch = require("yt-search");
+// song.js - Advanced YouTube Audio Downloader Plugin using @bochilteam/scraper
+const { youtube } = require("@bochilteam/scraper");
+const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
-const ffmpeg = require("fluent-ffmpeg");
-const ffmpegPath = require("ffmpeg-static");
-ffmpeg.setFfmpegPath(ffmpegPath);
 
 module.exports = {
   name: "song",
   command: ["song", "play", "music"],
-  description: "Download and send high-quality MP3 audio from YouTube.",
+  description: "Download and send MP3 audio from YouTube using scraper.",
 
   async execute(sock, m, args, { axios, fetch }) {
     const jid = m.key.remoteJid;
@@ -22,89 +18,74 @@ module.exports = {
     }
 
     const query = args.join(" ");
-    let attempts = 0;
-    const maxAttempts = 3;
+    try {
+      // Search using scraper
+      const searchResults = await youtube(query, { limit: 5 }); // Get 5 results for fallback
+      if (!searchResults.length) {
+        return sock.sendMessage(jid, { text: "❌ কোন ফলাফল পাওয়া যায়নি।" }, { quoted: m });
+      }
 
-    while (attempts < maxAttempts) {
-      try {
-        // Search or validate URL
-        let url;
-        let title = "Unknown Title";
-        if (ytdl.validateURL(query)) {
-          url = query;
-          const info = await ytdl.getInfo(url);
-          title = info.videoDetails.title;
-        } else {
-          console.log(`[Song] Searching for: ${query}`);
-          const search = await ytSearch(query);
-          if (!search.videos.length) {
-            return sock.sendMessage(jid, { text: "❌ কোন ফলাফল পাওয়া যায়নি।" }, { quoted: m });
-          }
-          url = search.videos[attempts % search.videos.length].url;
-          title = search.videos[attempts % search.videos.length].title;
-          console.log(`[Song] Selected: ${title} (${url})`);
-        }
+      let audioUrl = searchResults[0].audio[0].url;
+      let title = searchResults[0].title || "Unknown Title";
+      let attempt = 0;
+      const maxAttempts = searchResults.length;
 
-        // Notify user
-        await sock.sendMessage(jid, { text: `🎶 *${title}* ডাউনলোড হচ্ছে...\n⏳ দয়া করে অপেক্ষা করুন...` }, { quoted: m });
-
-        // Create downloads folder
-        const downloadsDir = path.join(__dirname, "../downloads");
-        if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
-        const outFile = path.join(downloadsDir, `${Date.now()}.mp3`);
-
-        // Try ytdl-core first
-        let downloaded = false;
+      while (attempt < maxAttempts) {
         try {
-          const stream = ytdl(url, { filter: "audioonly", quality: "highestaudio" });
-          await new Promise((resolve, reject) => {
-            ffmpeg(stream)
-              .audioBitrate(128)
-              .format("mp3")
-              .save(outFile)
-              .on("end", resolve)
-              .on("error", reject);
-          });
-          downloaded = true;
-        } catch (ytdlErr) {
-          console.error(`[Song] ytdl-core failed: ${ytdlErr.message}`);
-        }
+          console.log(`[Song] Attempting download from: ${audioUrl}`);
+          // Notify user
+          await sock.sendMessage(jid, { text: `🎶 *${title}* ডাউনলোড হচ্ছে...\n⏳ দয়া করে অপেক্ষা করুন...` }, { quoted: m });
 
-        // Fallback to play-dl
-        if (!downloaded) {
-          console.log("[Song] Falling back to play-dl");
-          if (playdl.is_expired()) await playdl.refreshToken();
-          const stream = await playdl.stream(url, { quality: 2 });
-          const writer = fs.createWriteStream(outFile);
-          stream.stream.pipe(writer);
+          // Create downloads folder
+          const downloadsDir = path.join(__dirname, "../downloads");
+          if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
+          const outFile = path.join(downloadsDir, `${Date.now()}.mp3`);
+
+          // Download MP3
+          const response = await axios({
+            url: audioUrl,
+            method: "GET",
+            responseType: "stream",
+            timeout: 60000 // 60-second timeout
+          });
+
+          const writer = response.data.pipe(fs.createWriteStream(outFile));
+
           await new Promise((resolve, reject) => {
             writer.on("finish", resolve);
             writer.on("error", reject);
           });
-        }
 
-        // Verify file
-        if (!fs.existsSync(outFile) || fs.statSync(outFile).size === 0) {
-          throw new Error("Failed to download or convert audio.");
-        }
+          // Verify file
+          if (!fs.existsSync(outFile) || fs.statSync(outFile).size === 0) {
+            throw new Error("Downloaded audio file is missing or empty.");
+          }
 
-        // Send MP3
-        const media = { url: outFile, mimetype: "audio/mpeg", filename: `${title}.mp3` };
-        await sock.sendMessage(jid, { audio: media }, { quoted: m });
+          // Send MP3
+          await sock.sendMessage(jid, {
+            audio: { url: outFile },
+            mimetype: "audio/mpeg",
+            fileName: `${title}.mp3`
+          }, { quoted: m });
 
-        // Clean up
-        fs.unlinkSync(outFile);
-        console.log(`[Song] Cleaned up: ${outFile}`);
-        return; // Success
-      } catch (err) {
-        console.error(`[Song] Attempt ${attempts + 1} failed: ${err.message}`);
-        attempts++;
-        if (attempts >= maxAttempts) {
-          await sock.sendMessage(jid, { text: `❌ গান ডাউনলোড করতে ব্যর্থ।\nকারণ: ${err.message}\nঅন্য গান বা URL চেষ্টা করুন।` }, { quoted: m });
-          return;
+          // Clean up
+          fs.unlinkSync(outFile);
+          console.log(`[Song] Cleaned up: ${outFile}`);
+          return; // Success
+        } catch (err) {
+          console.error(`[Song] Download attempt ${attempt + 1} failed: ${err.message}`);
+          attempt++;
+          if (attempt < maxAttempts) {
+            audioUrl = searchResults[attempt].audio[0].url;
+            title = searchResults[attempt].title;
+          } else {
+            throw new Error("All download attempts failed.");
+          }
         }
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay
       }
+    } catch (err) {
+      console.error("[Song Error]:", err.message);
+      await sock.sendMessage(jid, { text: `❌ গান প্রক্রিয়া করতে ব্যর্থ।\nকারণ: ${err.message}\nঅন্য গানের নাম বা URL চেষ্টা করুন।` }, { quoted: m });
     }
   }
 };
