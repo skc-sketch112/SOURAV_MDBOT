@@ -1,4 +1,4 @@
-// song.js - Advanced YouTube Audio Downloader Plugin with Thumbnail
+// song.js - Ultra Pro YouTube Audio Downloader Plugin
 const ytdl = require("@distube/ytdl-core");
 const ytSearch = require("yt-search");
 const fs = require("fs");
@@ -12,22 +12,22 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 module.exports = {
   name: "song",
   command: ["song", "play", "music"],
-  description: "Download and send MP3 audio from YouTube with thumbnail.",
+  description: "Download and send high-quality MP3 audio from YouTube with thumbnail, proxy support, and error handling.",
 
   async execute(sock, m, args, { axios, fetch }) {
     const jid = m.key.remoteJid;
     console.log(`[Song] Command received: ${m.body} from ${jid}`);
 
     if (!args[0]) {
-      return sock.sendMessage(jid, { text: "❌ দয়া করে গানের নাম বা YouTube URL দিন।\nউদাহরণ: `.song despacito` বা `.song https://www.youtube.com/watch?v=kJQP7kiw5Fk`" }, { quoted: m });
+      return sock.sendMessage(jid, { text: "❌ Please provide a song name or YouTube URL.\nExample: `.song despacito` or `.song https://www.youtube.com/watch?v=kJQP7kiw5Fk`" }, { quoted: m });
     }
 
     const query = args.join(" ");
     let attempts = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 5;
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-    // Proxy list (comma-separated in env)
+    // Proxy list (comma-separated in env, e.g., "http://proxy1:port,http://proxy2:port")
     const proxies = process.env.HTTP_PROXY ? process.env.HTTP_PROXY.split(",") : [];
     const getAgent = () => proxies.length ? new ProxyAgent(proxies[Math.floor(Math.random() * proxies.length)]) : null;
 
@@ -44,10 +44,10 @@ module.exports = {
         thumbnail = info.videoDetails.thumbnails[info.videoDetails.thumbnails.length - 1].url;
       } else {
         console.log(`[Song] Searching for: ${query}`);
-        await delay(2000); // Avoid rate limit
+        await delay(2000); // Avoid rate limit on search
         const search = await ytSearch(query);
         if (!search.videos.length) {
-          return sock.sendMessage(jid, { text: "❌ কোন ফলাফল পাওয়া যায়নি।" }, { quoted: m });
+          return sock.sendMessage(jid, { text: "❌ No results found." }, { quoted: m });
         }
         url = search.videos[0].url;
         title = search.videos[0].title;
@@ -56,20 +56,17 @@ module.exports = {
       }
 
       // Notify user
-      await sock.sendMessage(jid, { text: `🎶 *${title}* ডাউনলোড হচ্ছে...\n⏳ দয়া করে অপেক্ষা করুন...` }, { quoted: m });
+      await sock.sendMessage(jid, { text: `🎶 *${title}* downloading...\n⏳ Please wait...` }, { quoted: m });
 
       // Create downloads folder
       const downloadsDir = path.join(__dirname, "../downloads");
-      if (!fs.existsSync(downloadsDir)) {
-        fs.mkdirSync(downloadsDir, { recursive: true });
-        console.log(`[Song] Created downloads directory: ${downloadsDir}`);
-      }
+      if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
       const outFile = path.join(downloadsDir, `${Date.now()}.mp3`);
 
       while (attempts < maxAttempts) {
         try {
           console.log(`[Song] Attempt ${attempts + 1}: Downloading ${url} with proxy: ${agent ? agent.proxy.href : "none"}`);
-          await delay(3000 * Math.pow(2, attempts)); // Exponential backoff: 3s, 6s, 12s
+          await delay(3000 * Math.pow(2, attempts)); // Exponential backoff: 3s, 6s, 12s, 24s, 48s
           const stream = ytdl(url, { 
             filter: "audioonly", 
             quality: "highestaudio",
@@ -86,14 +83,8 @@ module.exports = {
           });
 
           // Verify file
-          const stats = fs.statSync(outFile);
-          if (!fs.existsSync(outFile) || stats.size === 0) {
+          if (!fs.existsSync(outFile) || fs.statSync(outFile).size === 0) {
             throw new Error("Downloaded audio file is missing or empty.");
-          }
-
-          // Check file size (WhatsApp max ~16MB)
-          if (stats.size > 16 * 1024 * 1024) {
-            throw new Error("Audio file exceeds WhatsApp's 16MB limit.");
           }
 
           // Download thumbnail
@@ -109,7 +100,6 @@ module.exports = {
           }
 
           // Send audio with thumbnail
-          console.log(`[Song] Sending audio: ${outFile}, size: ${stats.size / (1024 * 1024)}MB`);
           await sock.sendMessage(jid, {
             audio: { url: outFile },
             mimetype: "audio/mpeg",
@@ -138,8 +128,8 @@ module.exports = {
         }
       }
     } catch (err) {
-      console.error("[Song Error]:", err.stack || err.message);
-      await sock.sendMessage(jid, { text: `❌ গান প্রক্রিয়া করতে ব্যর্থ।\nকারণ: ${err.message}\nঅন্য গানের নাম বা URL চেষ্টা করুন অথবা পরে আবার চেষ্টা করুন।` }, { quoted: m });
+      console.error("[Song Error]:", err.message);
+      await sock.sendMessage(jid, { text: `❌ Failed to process song.\nError: ${err.message}\nTry another song name or URL or try later." }, { quoted: m });
     }
   }
 };
