@@ -18,7 +18,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-  res.send("✅ Bot is running and alive!");
+  res.send("✅ SouravMD is running and alive!");
 });
 
 app.listen(PORT, () => {
@@ -27,7 +27,7 @@ app.listen(PORT, () => {
 
 // ================== HEARTBEAT ==================
 setInterval(() => {
-  console.log("💓 Heartbeat: Bot still running...");
+  console.log("💓 Heartbeat: SouravMD still running...");
 }, 1000 * 60 * 5);
 
 // ================== PLUGIN SYSTEM ==================
@@ -59,7 +59,10 @@ function loadPlugin(file) {
 
 function loadPlugins() {
   commands.clear();
-  if (!fs.existsSync(PLUGIN_DIR)) return;
+  if (!fs.existsSync(PLUGIN_DIR)) {
+    console.error(`❌ Plugins directory (${PLUGIN_DIR}) not found!`);
+    return;
+  }
   fs.readdirSync(PLUGIN_DIR).forEach(file => {
     if (file.endsWith(".js")) loadPlugin(file);
   });
@@ -84,7 +87,7 @@ async function startBot() {
   const sock = makeWASocket({
     logger: pino({ level: "silent" }),
     printQRInTerminal: true,
-    qrTimeout: 0, // ❗ QR expire হবে না
+    qrTimeout: 0,
     auth: state,
     version
   });
@@ -109,36 +112,29 @@ async function startBot() {
         setTimeout(startBot, 5000);
       }
     } else if (connection === "open") {
-      console.log("✅ BOT CONNECTED & ACTIVE!");
+      console.log("✅ SOURAVMD CONNECTED & ACTIVE!");
       
-      // Send advanced welcome message after QR login
+      // Send advanced welcome message
       try {
-        // Recipients: your phone number and/or group ID
         const recipients = [
           "YOUR_PHONE_NUMBER@s.whatsapp.net", // Replace with your number (e.g., "1234567890@s.whatsapp.net")
-          // "123456789-987654321@g.us" // Uncomment and add group ID if needed
+          // "123456789-987654321@g.us" // Uncomment for group
         ];
         
-        // Load bot version from package.json
         const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json")));
         const botVersion = packageJson.version || "3.0.0";
-
-        // Randomized greetings for dynamic feel
         const greetings = [
           "🎉 SouravMD is now online!",
           "🚀 SouravMD has landed!",
           "🔥 SouravMD is ready to rock!"
         ];
         const greeting = greetings[Math.floor(Math.random() * greetings.length)];
-
-        // Connection timestamp
         const timestamp = moment().format("DD/MM/YYYY HH:mm:ss");
-
-        // Welcome message with features and image
+        
         const welcomeMessage = `
 ${greeting}
 
-✅ *SOURAV_MD Connected succesfully💌!* (v${botVersion})
+✅ *SouravMD Connected Successfully!* (v${botVersion})
 🕒 Connected on: ${timestamp}
 
 🔥 *Why SouravMD?*
@@ -147,26 +143,20 @@ ${greeting}
 - 🎨 Create stickers with .sticker
 - 🤖 AI-powered chats
 - ⚙️ Advanced automation & scrapers
-- 🏇 Raid and autoraid features
 
 📢 Join our Telegram: https://t.me/YOUR_CHANNEL
 📱 Join our WhatsApp group: https://chat.whatsapp.com/YOUR_GROUP_LINK
 Type *.menu* to explore all commands! 🚀
         `;
         
-        // Profile picture (replace with your hosted image URL)
-        const pfpUrl = "https://i.imgur.com/YOUR_IMAGE.jpg"; // Replace with your bot's logo/image URL
-
-        // Send to each recipient with retry logic
+        const pfpUrl = "https://i.imgur.com/YOUR_IMAGE.jpg"; // Replace with your bot's logo URL
+        
         for (const recipient of recipients) {
           let attempts = 0;
           const maxAttempts = 3;
           while (attempts < maxAttempts) {
             try {
-              // Delay to ensure connection stability
               await new Promise(resolve => setTimeout(resolve, 2000));
-              
-              // Download PFP
               let imageBuffer = null;
               try {
                 const response = await axios.get(pfpUrl, { responseType: "arraybuffer", timeout: 10000 });
@@ -175,21 +165,20 @@ Type *.menu* to explore all commands! 🚀
                 console.warn(`[Welcome] Failed to download PFP: ${imgErr.message}`);
               }
 
-              // Send message with or without image
               await sock.sendMessage(recipient, {
                 text: welcomeMessage,
                 ...(imageBuffer ? { image: imageBuffer, caption: welcomeMessage } : {})
               });
               
               console.log(`[Welcome] Sent welcome message to ${recipient}`);
-              break; // Success, exit retry loop
+              break;
             } catch (err) {
               console.error(`[Welcome] Attempt ${attempts + 1} failed for ${recipient}:`, err.message);
               attempts++;
               if (attempts >= maxAttempts) {
-                console.error(`[Welcome Error]: Failed to send welcome message to ${recipient} after ${maxAttempts} attempts`);
+                console.error(`[Welcome Error]: Failed to send to ${recipient} after ${maxAttempts} attempts`);
               }
-              await new Promise(resolve => setTimeout(resolve, 3000)); // 3s delay between retries
+              await new Promise(resolve => setTimeout(resolve, 3000));
             }
           }
         }
@@ -219,7 +208,7 @@ Type *.menu* to explore all commands! 🚀
         try {
           await plugin.onMessage(sock, m);
         } catch (err) {
-          console.error(`❌ Error in onMessage plugin:`, err.message);
+          console.error(`❌ Error in onMessage plugin ${plugin.name || "unknown"}:`, err.message);
         }
       }
     }
@@ -229,20 +218,21 @@ Type *.menu* to explore all commands! 🚀
     let args = body.slice(1).trim().split(/\s+/);
     let cmd = args.shift().toLowerCase();
 
-    // ✅ Plugin commands only (no hardcoded ping/menu)
     let command = commands.get(cmd);
     if (command && typeof command.execute === "function") {
       try {
         await command.execute(sock, m, args, { axios, fetch });
         console.log(`⚡ Command executed: ${cmd}`);
       } catch (err) {
-        console.error(`❌ Error in command ${cmd}:`, err);
+        console.error(`❌ Error in command ${cmd}:`, err.stack || err.message);
         await sock.sendMessage(
           m.key.remoteJid,
           { text: `⚠️ Error while executing: ${cmd}\n${err.message}` },
           { quoted: m }
         );
       }
+    } else {
+      console.log(`[Command] Unknown command: ${cmd}`);
     }
   });
 
@@ -261,7 +251,7 @@ Type *.menu* to explore all commands! 🚀
         react: { text: reaction, key: msg.key }
       });
     } catch (err) {
-      console.error("AutoReact error:", err);
+      console.error("AutoReact error:", err.message);
     }
   });
 
@@ -271,18 +261,17 @@ Type *.menu* to explore all commands! 🚀
       await sock.sendPresenceUpdate("available");
       console.log("📡 Keep-alive ping sent!");
     } catch (err) {
-      console.error("Keep-alive ping error:", err);
+      console.error("Keep-alive ping error:", err.message);
     }
   }, 1000 * 60 * 2);
-
 }
 
 // ================== ERROR HANDLERS ==================
 process.on("uncaughtException", (err) => {
-  console.error("❌ Uncaught Exception:", err);
+  console.error("❌ Uncaught Exception:", err.stack || err.message);
 });
 process.on("unhandledRejection", (reason) => {
-  console.error("❌ Unhandled Rejection:", reason);
+  console.error("❌ Unhandled Rejection:", reason.stack || reason);
 });
 
 startBot();
