@@ -1,4 +1,4 @@
-// meme.js - Ultra Pro Meme Generator Plugin
+// meme.js - Ultra Pro Random Meme Generator Plugin
 const { createCanvas } = require("canvas");
 const fs = require("fs");
 const path = require("path");
@@ -7,36 +7,24 @@ const { loadImage } = require("canvas");
 module.exports = {
   name: "meme",
   command: ["meme", "memegen", "m"],
-  description: "Generate a meme with unlimited text in Bengali, English, or Hindi.",
+  description: "Generate a random meme with unlimited text in Bengali, English, or Hindi.",
 
   async execute(sock, m, args, { axios, fetch }) {
     const jid = m.key.remoteJid;
-    console.log(`[Meme] Command received at 01:51 PM IST, Aug 27, 2025: ${m.body} from ${jid}`);
+    console.log(`[Meme] Command received at 02:08 PM IST, Aug 27, 2025: ${m.body} from ${jid}`);
 
-    // Default meme template (e.g., Drake Hotline Bling)
-    const defaultTemplate = "https://i.imgur.com/8nP0e2b.jpg"; // Drake template; replace with your preferred URL
+    // Pool of random meme templates
+    const memeTemplates = [
+      "https://i.imgur.com/8nP0e2b.jpg", // Drake
+      "https://i.imgur.com/1gQ2E2c.jpg", // Distracted Boyfriend
+      "https://i.imgur.com/5Q1E7k9.jpg", // Change My Mind
+      "https://i.imgur.com/9jK8L3m.jpg"  // Success Kid (add more URLs as needed)
+    ];
 
     try {
-      // Parse input (e.g., .meme top: হাসি bottom: মজা)
-      let topText = "";
-      let bottomText = "";
-      if (args.length) {
-        args.forEach(arg => {
-          if (arg.toLowerCase().startsWith("top:")) topText = arg.slice(4).trim();
-          else if (arg.toLowerCase().startsWith("bottom:")) bottomText = arg.slice(7).trim();
-        });
-      }
-
-      // Use full input as top text if no split provided
-      if (!topText && args.length) topText = args.join(" ").trim();
-      if (!topText) {
-        return sock.sendMessage(jid, { text: "❌ Please provide text.\nExample: `.meme top: হাসি bottom: মজা` or `.meme Laugh Fun`" }, { quoted: m });
-      }
-
-      console.log(`[Meme] Processing: Top: ${topText}, Bottom: ${bottomText}`);
-
-      // Load template image
-      const image = await loadImage(defaultTemplate);
+      // Use random template
+      const randomTemplate = memeTemplates[Math.floor(Math.random() * memeTemplates.length)];
+      const image = await loadImage(randomTemplate);
       const width = image.width;
       const height = image.height;
       const canvas = createCanvas(width, height);
@@ -45,17 +33,21 @@ module.exports = {
       // Draw image
       ctx.drawImage(image, 0, 0, width, height);
 
-      // Set font with multi-language support (e.g., Noto Sans for Bengali/Hindi)
+      // Set font with multi-language support
       ctx.fillStyle = "white";
       ctx.strokeStyle = "black";
       ctx.lineWidth = 2;
       ctx.textAlign = "center";
       ctx.font = "bold 40px 'Noto Sans', 'Segoe UI Emoji'";
 
-      // Add top text
-      wrapText(ctx, topText, width / 2, 50, width - 40, 40);
-      // Add bottom text
-      wrapText(ctx, bottomText, width / 2, height - 50, width - 40, 40);
+      // Use full input as text (no "top:" or "bottom:" parsing)
+      const text = args.join(" ").trim() || "Random Meme Time!";
+      console.log(`[Meme] Processing text: ${text}`);
+
+      // Add text at random positions
+      const yPositions = [50, height / 2, height - 50];
+      const randomY = yPositions[Math.floor(Math.random() * yPositions.length)];
+      wrapText(ctx, text, width / 2, randomY, width - 40, 40);
 
       // Convert to buffer
       const buffer = canvas.toBuffer("image/png");
@@ -73,7 +65,7 @@ module.exports = {
       // Send meme
       await sock.sendMessage(jid, {
         image: { url: tempFile },
-        caption: "😂 Your meme is ready! 😂",
+        caption: "😂 Random meme generated! 😂",
       }, { quoted: m });
 
       // Clean up
@@ -110,4 +102,4 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     ctx.strokeText(line, x, y + (index * lineHeight));
     ctx.fillText(line, x, y + (index * lineHeight));
   });
-}
+        }
