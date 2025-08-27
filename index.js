@@ -22,8 +22,11 @@ app.get("/", (req, res) => {
   res.send("✅ SouravMD is running and alive!");
 });
 
+// Start server in a way that doesn’t block the main process
 app.listen(PORT, () => {
   console.log(`🌐 Keep-alive server running on port ${PORT}`);
+}).on("error", (err) => {
+  console.error("❌ Keep-alive server error:", err.message);
 });
 
 // ================== HEARTBEAT ==================
@@ -114,12 +117,11 @@ async function startBot() {
       }
     } else if (connection === "open") {
       console.log("✅ SOURAVMD CONNECTED & ACTIVE!");
-      
-      // Send advanced welcome message to the user who scanned the QR
+
+      // Send welcome message
       try {
-        // Get the authenticated user's JID (phone number)
         const userJid = sock.user?.id?.split(":")[0] + "@s.whatsapp.net" || null;
-        const recipients = userJid ? [userJid] : []; // Only send to the QR scanner
+        const recipients = userJid ? [userJid] : [];
 
         if (!recipients.length) {
           console.warn("[Welcome] No valid user JID found for welcome message.");
@@ -128,14 +130,10 @@ async function startBot() {
 
         const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json")));
         const botVersion = packageJson.version || "3.0.0";
-        const greetings = [
-          "🎉 SouravMD is now online!",
-          "🚀 SouravMD has landed!",
-          "🔥 SouravMD is ready to rock!"
-        ];
+        const greetings = ["🎉 SouravMD is now online!", "🚀 SouravMD has landed!", "🔥 SouravMD is ready to rock!"];
         const greeting = greetings[Math.floor(Math.random() * greetings.length)];
         const timestamp = moment().format("DD/MM/YYYY HH:mm:ss");
-        
+
         const welcomeMessage = `
 ${greeting}
 
@@ -153,9 +151,9 @@ ${greeting}
 📱 Join our WhatsApp group: https://chat.whatsapp.com/YOUR_GROUP_LINK
 Type *.menu* to explore all commands! 🚀
         `;
-        
+
         const pfpUrl = "https://i.imgur.com/YOUR_IMAGE.jpg"; // Replace with your bot's logo URL
-        
+
         for (const recipient of recipients) {
           let attempts = 0;
           const maxAttempts = 3;
@@ -174,7 +172,6 @@ Type *.menu* to explore all commands! 🚀
                 text: welcomeMessage,
                 ...(imageBuffer ? { image: imageBuffer, caption: welcomeMessage } : {})
               });
-              
               console.log(`[Welcome] Sent welcome message to ${recipient}`);
               break;
             } catch (err) {
@@ -207,7 +204,7 @@ Type *.menu* to explore all commands! 🚀
       m.message.videoMessage?.caption ||
       "";
 
-    // 🔹 Run onMessage plugins
+    // Run onMessage plugins
     for (let plugin of commands.values()) {
       if (typeof plugin.onMessage === "function") {
         try {
@@ -218,7 +215,7 @@ Type *.menu* to explore all commands! 🚀
       }
     }
 
-    // 🔹 Commands with prefix `.`
+    // Commands with prefix "."
     if (!body.startsWith(".")) return;
     let args = body.slice(1).trim().split(/\s+/);
     let cmd = args.shift().toLowerCase();
@@ -270,14 +267,15 @@ Type *.menu* to explore all commands! 🚀
       console.error("Keep-alive ping error:", err.message);
     }
   }, 1000 * 60 * 2);
+
+  // ================== ERROR HANDLERS ==================
+  process.on("uncaughtException", (err) => {
+    console.error("❌ Uncaught Exception:", err.stack || err.message);
+  });
+  process.on("unhandledRejection", (reason) => {
+    console.error("❌ Unhandled Rejection:", reason.stack || reason);
+  });
 }
 
-// ================== ERROR HANDLERS ==================
-process.on("uncaughtException", (err) => {
-  console.error("❌ Uncaught Exception:", err.stack || err.message);
-});
-process.on("unhandledRejection", (reason) => {
-  console.error("❌ Unhandled Rejection:", reason.stack || reason);
-});
-
+// Start the bot
 startBot();
