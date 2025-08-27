@@ -1,56 +1,61 @@
-// plugins/ghibliart.js
+// shazam.js
 const fs = require("fs");
 const path = require("path");
-const { downloadMediaMessage } = require("@whiskeysockets/baileys");
-const fetch = require("node-fetch");
+const axios = require("axios");
+const { getLyrics } = require("genius-lyrics-api");
 
 module.exports = {
-  name: "ghibli",
-  command: ["ghibli", "ghibliart"],
-  description: "Transform any image into Ghibli-style art.",
+  name: "shazam",
+  command: ["shazam", "findsong"],
+  description: "Identify songs + fetch lyrics (Ultra Power)",
 
   async execute(sock, msg, args) {
     const jid = msg.key.remoteJid;
-
     try {
       const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-      const imageMsg = msg.message?.imageMessage || quoted?.imageMessage;
-
-      if (!imageMsg) {
-        return sock.sendMessage(jid, { text: "🖼️ Please reply to an *image*." }, { quoted: msg });
+      if (!quoted || !quoted.audioMessage) {
+        return sock.sendMessage(jid, { text: "🎵 Reply to an *audio/voice note* to identify the song!" }, { quoted: msg });
       }
 
-      // Download image
-      const buffer = await downloadMediaMessage(
-        { message: quoted || msg.message },
-        "buffer",
-        {},
-        { reuploadRequest: sock.updateMediaMessage }
-      );
+      // Download audio
+      const buffer = await sock.downloadMediaMessage({ message: quoted });
+      if (!buffer) throw new Error("Failed to download audio!");
 
-      const tempFile = path.join(__dirname, "../downloads/ghibli_input.jpg");
-      fs.writeFileSync(tempFile, buffer);
+      const filePath = path.join(__dirname, `../downloads/shazam_${Date.now()}.mp3`);
+      fs.writeFileSync(filePath, buffer);
 
-      // Send to DeepAI Ghibli model
-      const res = await fetch("https://api.deepai.org/api/toonify", {
-        method: "POST",
-        headers: { "Api-Key": process.env.DEEPAI_API_KEY },
-        body: { image: fs.createReadStream(tempFile) }
+      // Use Audd.io for recognition
+      const formData = new FormData();
+      formData.append("file", fs.createReadStream(filePath));
+      formData.append("api_token", process.env.AUDD_API_KEY);
+
+      const res = await axios.post("https://api.audd.io/", formData, {
+        headers: formData.getHeaders(),
       });
 
-      const result = await res.json();
-      if (!result.output_url) throw new Error("API failed");
+      fs.unlinkSync(filePath);
 
-      await sock.sendMessage(jid, {
-        image: { url: result.output_url },
-        caption: "✨ Your art in Studio Ghibli style!"
-      }, { quoted: msg });
+      if (!res.data.result) {
+        return sock.sendMessage(jid, { text: "❌ Could not recognize the song." }, { quoted: msg });
+      }
 
-      fs.unlinkSync(tempFile);
+      const { title, artist } = res.data.result;
+      let reply = `🎶 *${title}* - ${artist}\n\n`;
+
+      // Genius Lyrics
+      const lyrics = await getLyrics({
+        apiKey: process.env.GENIUS_ACCESS_TOKEN,
+        title,
+        artist,
+        optimizeQuery: true,
+      });
+
+      reply += lyrics ? `📑 Lyrics:\n\n${lyrics}` : "❌ Lyrics not found.";
+      await sock.sendMessage(jid, { text: reply }, { quoted: msg });
 
     } catch (err) {
-      console.error("Ghibli Error:", err);
-      await sock.sendMessage(jid, { text: "❌ Failed to transform image." }, { quoted: msg });
+      console.error("Shazam Error:", err);
+      await sock.sendMessage(jid, { text: "❌ Failed to identify song." }, { quoted: msg });
     }
   }
 };
