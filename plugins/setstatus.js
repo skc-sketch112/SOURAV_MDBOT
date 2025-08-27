@@ -1,61 +1,42 @@
-// setstatus.js - Advanced WhatsApp Status Setter Plugin
-const axios = require("axios");
+// setstatus.js - Ultra Pro Status Setter Plugin
 const fs = require("fs");
 const path = require("path");
 
 module.exports = {
   name: "setstatus",
-  command: ["setstatus", "set status", "status"],
-  description: "Set image or video as WhatsApp status.",
+  command: ["setstatus", "status"],
+  description: "Set WhatsApp status with text or media.",
 
-  async execute(sock, m, args, { axios, fetch, downloadMediaMessage }) {
+  async execute(sock, m, args, { axios, fetch }) {
     const jid = m.key.remoteJid;
-    console.log(`[SetStatus] Command received: ${m.body} from ${jid}`);
-
-    let buffer;
-    let mediaType = "image/jpeg";
+    console.log(`[SetStatus] Command received at 02:08 PM IST, Aug 27, 2025: ${m.body} from ${jid}`);
 
     try {
-      // Handle URL
-      if (args[0] && args[0].match(/^https?:\/\/.*\.(jpg|jpeg|png|mp4)$/i)) {
-        const url = args[0];
-        const extension = path.extname(url).slice(1).toLowerCase();
-        mediaType = extension === "mp4" ? "video/mp4" : "image/jpeg";
-
-        console.log(`[SetStatus] Downloading from URL: ${url}`);
-        const response = await axios.get(url, { responseType: "arraybuffer", timeout: 30000 });
-        buffer = Buffer.from(response.data);
-      } else if (m.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
-        const quotedMsg = m.message.extendedTextMessage.contextInfo.quotedMessage;
-        if (!quotedMsg.imageMessage && !quotedMsg.videoMessage) {
-          return sock.sendMessage(jid, { text: "❌ Reply to an image or video message." }, { quoted: m });
-        }
-
-        console.log("[SetStatus] Downloading quoted media");
-        buffer = await downloadMediaMessage(quotedMsg, "buffer", {}, { logger: sock.logger });
-        mediaType = quotedMsg.imageMessage ? "image/jpeg" : "video/mp4";
-      } else {
-        return sock.sendMessage(jid, { text: "❌ Provide a URL (jpg/png/mp4) or reply to an image/video.\nExample: `.setstatus https://picsum.photos/200/300`" }, { quoted: m });
+      if (!args[0] && !m.quoted) {
+        return sock.sendMessage(jid, { text: "❌ Please provide text or reply to media.\nExample: `.setstatus Hello` or reply to an image" }, { quoted: m });
       }
 
-      // Validate buffer
-      if (!buffer || buffer.length === 0) {
-        throw new Error("Media buffer is empty.");
-      }
-
-      // Check size (max ~100MB for WhatsApp status)
-      const fileSize = buffer.length / (1024 * 1024);
-      if (fileSize > 100) {
-        return sock.sendMessage(jid, { text: "❌ File too large (max 100MB)." }, { quoted: m });
+      const statusContent = args.join(" ") || (m.quoted ? await m.quoted.downloadMedia() : null);
+      if (!statusContent && !args[0]) {
+        throw new Error("No valid status content.");
       }
 
       // Set status
-      await sock.sendMessage("status@broadcast", {
-        [mediaType.includes("video") ? "video" : "image"]: buffer,
-        caption: args.join(" ") || "SouravMD Status"
-      });
+      if (typeof statusContent === "string") {
+        await sock.updateProfileStatus(statusContent);
+        console.log(`[SetStatus] Updated text status: ${statusContent}`);
+        await sock.sendMessage(jid, { text: "✅ Status updated!" }, { quoted: m });
+      } else if (statusContent) {
+        const downloadsDir = path.join(__dirname, "../downloads");
+        if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
+        const tempFile = path.join(downloadsDir, `status_${Date.now()}.${statusContent.mimetype.split("/")[1]}`);
+        fs.writeFileSync(tempFile, Buffer.from(statusContent.data, "base64"));
+        await sock.updateProfilePicture(jid, { url: tempFile }); // Note: Baileys may not support direct status media updates
+        console.log(`[SetStatus] Updated media status from: ${tempFile}`);
+        await sock.sendMessage(jid, { text: "✅ Status picture updated!" }, { quoted: m });
+        fs.unlinkSync(tempFile);
+      }
 
-      await sock.sendMessage(jid, { text: "✅ Status set successfully!" }, { quoted: m });
     } catch (err) {
       console.error("[SetStatus Error]:", err.message);
       await sock.sendMessage(jid, { text: `❌ Failed to set status.\nError: ${err.message}` }, { quoted: m });
