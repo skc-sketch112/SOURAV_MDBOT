@@ -1,83 +1,76 @@
-const play = require("play-dl");
+const ytdl = require("ytdl-core");
+const yts = require("yt-search");
 const fs = require("fs");
 const path = require("path");
-const { pipeline } = require("stream");
 
 module.exports = {
   name: "song",
   command: ["song", "music"],
   description: "Download a song from YouTube by name or URL.",
 
-  async execute(sock, m, args) {
-    const jid = m.key.remoteJid;
-    let tempFile;
+  async execute(sock, msg, args) {
+    const jid = msg.key.remoteJid;
 
     try {
       if (!args[0]) {
-        return sock.sendMessage(
-          jid,
-          { text: "❌ Provide a song name or YouTube link.\nExample: `.song despacito`" },
-          { quoted: m }
-        );
+        return sock.sendMessage(jid, {
+          text: "❌ Please provide a song name or YouTube link.\n\nExample: `.song despacito`"
+        }, { quoted: msg });
       }
 
-      const query = args.join(" ");
-      let url = query;
+      let query = args.join(" ");
+      let url;
 
-      // If not a valid YouTube link, search
-      if (!play.yt_validate(query)) {
-        const search = await play.search(query, { limit: 1 });
-        if (!search.length) throw new Error("No song found on YouTube.");
-        url = search[0].url;
+      // If user typed a YouTube URL
+      if (ytdl.validateURL(query)) {
+        url = query;
+      } else {
+        // Search YouTube
+        let search = await yts(query);
+        if (!search.videos.length) {
+          return sock.sendMessage(jid, { text: "❌ No results found." }, { quoted: msg });
+        }
+        url = search.videos[0].url;
       }
 
-      // Get video info
-      const ytInfo = await play.video_info(url);
-      const title = ytInfo.video_details.title.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 40);
+      const info = await ytdl.getInfo(url);
+      const title = info.videoDetails.title.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 50);
+      const outputPath = path.join(__dirname, `${title}_${Date.now()}.mp3`);
 
-      // Download directory
-      const downloadsDir = path.join(__dirname, "../downloads");
-      if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
-      tempFile = path.join(downloadsDir, `${title}_${Date.now()}.mp3`);
-
-      // Get audio stream
-      const stream = await play.stream_from_info(ytInfo, { quality: 2 }); // quality: 2 = best audio
-      const writer = fs.createWriteStream(tempFile);
-
+      // Download audio only
       await new Promise((resolve, reject) => {
-        pipeline(stream.stream, writer, (err) => {
-          if (err) reject(err);
-          else resolve();
-        });
+        const stream = ytdl(url, {
+          filter: "audioonly",
+          quality: "highestaudio",
+          highWaterMark: 1 << 25
+        }).pipe(fs.createWriteStream(outputPath));
+
+        stream.on("finish", resolve);
+        stream.on("error", reject);
       });
 
-      const fileSize = fs.statSync(tempFile).size;
-      if (fileSize > 15 * 1024 * 1024) {
-        throw new Error("File exceeds WhatsApp 16MB limit. Try a shorter song.");
+      const stats = fs.statSync(outputPath);
+
+      // WhatsApp max size ~16MB
+      if (stats.size > 16 * 1024 * 1024) {
+        fs.unlinkSync(outputPath);
+        return sock.sendMessage(jid, { text: "⚠️ File too large for WhatsApp (max 16MB)." }, { quoted: msg });
       }
 
-      // Send song to WhatsApp
-      await sock.sendMessage(
-        jid,
-        {
-          audio: { url: tempFile },
-          mimetype: "audio/mpeg",
-          ptt: false
-        },
-        { quoted: m }
-      );
+      // Send song
+      await sock.sendMessage(jid, {
+        audio: { url: outputPath },
+        mimetype: "audio/mpeg"
+      }, { quoted: msg });
 
-      // Clean up
-      fs.unlinkSync(tempFile);
+      // Cleanup
+      fs.unlinkSync(outputPath);
 
     } catch (err) {
-      console.error("[Song Error]:", err.message);
-      if (tempFile && fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
-      await sock.sendMessage(
-        jid,
-        { text: `❌ Failed to download.\nError: ${err.message}` },
-        { quoted: m }
-      );
+      console.error("Song error:", err);
+      await sock.sendMessage(jid, {
+        text: "❌ Failed to fetch the song. Try again later!"
+      }, { quoted: msg });
     }
   }
 };
