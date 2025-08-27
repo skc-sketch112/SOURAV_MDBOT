@@ -4,7 +4,8 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  downloadMediaMessage
 } = require("@whiskeysockets/baileys");
 const pino = require("pino");
 const fs = require("fs");
@@ -114,13 +115,17 @@ async function startBot() {
     } else if (connection === "open") {
       console.log("✅ SOURAVMD CONNECTED & ACTIVE!");
       
-      // Send advanced welcome message
+      // Send advanced welcome message to the user who scanned the QR
       try {
-        const recipients = [
-          "YOUR_PHONE_NUMBER@s.whatsapp.net", // Replace with your number (e.g., "1234567890@s.whatsapp.net")
-          // "123456789-987654321@g.us" // Uncomment for group
-        ];
-        
+        // Get the authenticated user's JID (phone number)
+        const userJid = sock.user?.id?.split(":")[0] + "@s.whatsapp.net" || null;
+        const recipients = userJid ? [userJid] : []; // Only send to the QR scanner
+
+        if (!recipients.length) {
+          console.warn("[Welcome] No valid user JID found for welcome message.");
+          return;
+        }
+
         const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json")));
         const botVersion = packageJson.version || "3.0.0";
         const greetings = [
@@ -222,7 +227,7 @@ Type *.menu* to explore all commands! 🚀
     if (command && typeof command.execute === "function") {
       try {
         console.log(`[Command] Attempting to execute: ${cmd} from ${m.key.remoteJid}`);
-        await command.execute(sock, m, args, { axios, fetch });
+        await command.execute(sock, m, args, { axios, fetch, downloadMediaMessage });
         console.log(`⚡ Command executed: ${cmd}`);
       } catch (err) {
         console.error(`❌ Error in command ${cmd}:`, err.stack || err.message);
