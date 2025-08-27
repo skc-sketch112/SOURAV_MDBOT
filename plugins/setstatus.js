@@ -22,7 +22,7 @@ module.exports = {
         const extension = path.extname(url).slice(1).toLowerCase();
         mediaType = extension === "mp4" ? "video/mp4" : "image/jpeg";
 
-        console.log("[SetStatus] Downloading from URL: " + url);
+        console.log(`[SetStatus] Downloading from URL: ${url}`);
         const response = await axios.get(url, { responseType: "arraybuffer", timeout: 30000 });
         buffer = Buffer.from(response.data);
       } else if (m.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
@@ -32,7 +32,8 @@ module.exports = {
         }
 
         console.log("[SetStatus] Downloading quoted media");
-        buffer = await sock.downloadMediaMessage(quotedMsg);
+        // Fix: Pass quoted message correctly
+        buffer = await sock.downloadMediaMessage({ message: quotedMsg }, "buffer");
         mediaType = quotedMsg.imageMessage ? "image/jpeg" : "video/mp4";
       } else {
         return sock.sendMessage(jid, { text: "❌ URL (jpg/png/mp4) দিন বা ছবি/ভিডিওতে উত্তর দিন।\nউদাহরণ: `.setstatus https://picsum.photos/200/300`" }, { quoted: m });
@@ -50,11 +51,14 @@ module.exports = {
       }
 
       // Set status
-      await sock.sendMessage("status@broadcast", { [mediaType.includes("video") ? "video" : "image"]: buffer }, { quoted: m });
+      await sock.sendMessage("status@broadcast", {
+        [mediaType.includes("video") ? "video" : "image"]: buffer,
+        caption: args.join(" ") || "SouravMD Status"
+      }, { quoted: m });
 
       await sock.sendMessage(jid, { text: "✅ স্ট্যাটাস সফলভাবে সেট করা হয়েছে!" }, { quoted: m });
     } catch (err) {
-      console.error("[SetStatus Error]:", err.message);
+      console.error("[SetStatus Error]:", err.stack || err.message);
       await sock.sendMessage(jid, { text: `❌ স্ট্যাটাস সেট করতে ব্যর্থ।\nকারণ: ${err.message}` }, { quoted: m });
     }
   }
