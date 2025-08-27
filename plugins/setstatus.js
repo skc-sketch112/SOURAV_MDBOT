@@ -8,7 +8,7 @@ module.exports = {
   command: ["setstatus", "set status", "status"],
   description: "Set image or video as WhatsApp status.",
 
-  async execute(sock, m, args, { axios, fetch }) {
+  async execute(sock, m, args, { axios, fetch, downloadMediaMessage }) {
     const jid = m.key.remoteJid;
     console.log(`[SetStatus] Command received: ${m.body} from ${jid}`);
 
@@ -23,7 +23,11 @@ module.exports = {
         mediaType = extension === "mp4" ? "video/mp4" : "image/jpeg";
 
         console.log(`[SetStatus] Downloading from URL: ${url}`);
-        const response = await axios.get(url, { responseType: "arraybuffer", timeout: 30000 });
+        const response = await axios.get(url, { 
+          responseType: "arraybuffer", 
+          timeout: 30000,
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+        });
         buffer = Buffer.from(response.data);
       } else if (m.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
         const quotedMsg = m.message.extendedTextMessage.contextInfo.quotedMessage;
@@ -32,8 +36,12 @@ module.exports = {
         }
 
         console.log("[SetStatus] Downloading quoted media");
-        // Fix: Pass quoted message correctly
-        buffer = await sock.downloadMediaMessage({ message: quotedMsg }, "buffer");
+        buffer = await downloadMediaMessage(
+          { key: m.key, message: quotedMsg },
+          "buffer",
+          {},
+          { logger: sock.logger, reuploadRequest: sock.updateMediaMessage }
+        );
         mediaType = quotedMsg.imageMessage ? "image/jpeg" : "video/mp4";
       } else {
         return sock.sendMessage(jid, { text: "❌ URL (jpg/png/mp4) দিন বা ছবি/ভিডিওতে উত্তর দিন।\nউদাহরণ: `.setstatus https://picsum.photos/200/300`" }, { quoted: m });
@@ -44,7 +52,7 @@ module.exports = {
         throw new Error("Media buffer is empty.");
       }
 
-      // Check size (max ~100MB)
+      // Check size (max ~100MB for WhatsApp status)
       const fileSize = buffer.length / (1024 * 1024);
       if (fileSize > 100) {
         return sock.sendMessage(jid, { text: "❌ ফাইলটি খুব বড় (সর্বোচ্চ ১০০ এমবি)।" }, { quoted: m });
@@ -54,7 +62,7 @@ module.exports = {
       await sock.sendMessage("status@broadcast", {
         [mediaType.includes("video") ? "video" : "image"]: buffer,
         caption: args.join(" ") || "SouravMD Status"
-      }, { quoted: m });
+      });
 
       await sock.sendMessage(jid, { text: "✅ স্ট্যাটাস সফলভাবে সেট করা হয়েছে!" }, { quoted: m });
     } catch (err) {
