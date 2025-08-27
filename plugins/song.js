@@ -27,8 +27,8 @@ module.exports = {
     const maxAttempts = 3;
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-    // Proxy list (add more proxies if needed)
-    const proxies = process.env.HTTP_PROXY ? [process.env.HTTP_PROXY] : [];
+    // Proxy list (comma-separated in env)
+    const proxies = process.env.HTTP_PROXY ? process.env.HTTP_PROXY.split(",") : [];
     const getAgent = () => proxies.length ? new ProxyAgent(proxies[Math.floor(Math.random() * proxies.length)]) : null;
 
     try {
@@ -44,7 +44,7 @@ module.exports = {
         thumbnail = info.videoDetails.thumbnails[info.videoDetails.thumbnails.length - 1].url;
       } else {
         console.log(`[Song] Searching for: ${query}`);
-        await delay(2000); // Avoid rate limit on search
+        await delay(2000); // Avoid rate limit
         const search = await ytSearch(query);
         if (!search.videos.length) {
           return sock.sendMessage(jid, { text: "❌ কোন ফলাফল পাওয়া যায়নি।" }, { quoted: m });
@@ -69,7 +69,7 @@ module.exports = {
       while (attempts < maxAttempts) {
         try {
           console.log(`[Song] Attempt ${attempts + 1}: Downloading ${url} with proxy: ${agent ? agent.proxy.href : "none"}`);
-          await delay(3000); // Delay to avoid 429
+          await delay(3000 * Math.pow(2, attempts)); // Exponential backoff: 3s, 6s, 12s
           const stream = ytdl(url, { 
             filter: "audioonly", 
             quality: "highestaudio",
@@ -91,7 +91,7 @@ module.exports = {
             throw new Error("Downloaded audio file is missing or empty.");
           }
 
-          // Check file size (WhatsApp max ~16MB for audio)
+          // Check file size (WhatsApp max ~16MB)
           if (stats.size > 16 * 1024 * 1024) {
             throw new Error("Audio file exceeds WhatsApp's 16MB limit.");
           }
@@ -125,7 +125,7 @@ module.exports = {
           console.error(`[Song] Attempt ${attempts + 1} failed: ${err.message}`);
           attempts++;
           if (attempts < maxAttempts) {
-            await delay(5000); // Longer delay for retry
+            await delay(5000); // Additional delay
             agent = getAgent(); // Rotate proxy
             const search = await ytSearch(query);
             url = search.videos[attempts % search.videos.length].url;
