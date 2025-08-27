@@ -1,8 +1,8 @@
-// ghibliart.js - Ultra Advanced Ghibli Art Transformer
 const fs = require("fs");
 const path = require("path");
 const fetch = require("node-fetch");
 const FormData = require("form-data");
+const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 
 module.exports = {
   name: "ghibliart",
@@ -13,16 +13,23 @@ module.exports = {
     const jid = msg.key.remoteJid;
 
     try {
-      // Get image input (from reply or URL argument)
       let imageUrl = null;
+
+      // Check if the user replied to an image
       const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
       if (quoted?.imageMessage) {
-        // If replying to an image
-        const imgBuffer = await sock.downloadMediaMessage({ message: quoted });
+        const buffer = await downloadMediaMessage(
+          { message: quoted },
+          "buffer",
+          {},
+          { logger: console }
+        );
+
         const tempPath = path.join(__dirname, "../downloads", `ghibli_${Date.now()}.jpg`);
-        fs.writeFileSync(tempPath, imgBuffer);
+        fs.writeFileSync(tempPath, buffer);
         imageUrl = tempPath;
       } else if (args[0]?.startsWith("http")) {
+        // If the user provided an image URL
         imageUrl = args[0];
       } else {
         return sock.sendMessage(jid, {
@@ -30,8 +37,7 @@ module.exports = {
         }, { quoted: msg });
       }
 
-      // AI API (OpenAI / Replicate / Custom Stable Diffusion endpoint)
-      // Example below: OpenAI Image Edit endpoint
+      // --- AI Transformation part (same as before) ---
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) throw new Error("Missing OpenAI API key (set OPENAI_API_KEY env).");
 
@@ -39,7 +45,6 @@ module.exports = {
       if (fs.existsSync(imageUrl)) {
         form.append("image", fs.createReadStream(imageUrl));
       } else {
-        // Download external URL first
         const res = await fetch(imageUrl);
         const buffer = await res.buffer();
         const tempFile = path.join(__dirname, "../downloads", `ghibli_url_${Date.now()}.jpg`);
@@ -62,13 +67,12 @@ module.exports = {
       const ghibliImage = json.data[0].url;
       if (!ghibliImage) throw new Error("No Ghibli image returned!");
 
-      // Send back the transformed image
+      // Send transformed image
       await sock.sendMessage(jid, {
         image: { url: ghibliImage },
         caption: "✨ *Here’s your Studio Ghibli Art!*"
       }, { quoted: msg });
 
-      // Cleanup temp
       if (fs.existsSync(imageUrl)) fs.unlinkSync(imageUrl);
 
     } catch (err) {
