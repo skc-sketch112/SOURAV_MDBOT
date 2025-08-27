@@ -72,13 +72,13 @@ module.exports = {
       console.log(`[SetStatus] Saved temp file: ${tempFile}, size: ${fileSize}MB`);
 
       // Set status
-      console.log(`[SetStatus] Sending status: ${mediaType}, size: ${fileSize}MB`);
+      console.log(`[SetStatus] Sending status: ${mediaType}, size: ${fileSize}MB, JID: ${sock.user.id}`);
       await sock.sendMessage("status@broadcast", {
         [mediaType.includes("video") ? "video" : "image"]: { url: tempFile },
         caption: args.join(" ") || "SouravMD Status",
         backgroundColor: "#000000",
         font: 1,
-        statusJidList: [sock.user.id] // Ensure status is visible to self
+        statusJidList: [sock.user.id.split(":")[0] + "@s.whatsapp.net"] // Ensure visible to self
       });
 
       // Clean up
