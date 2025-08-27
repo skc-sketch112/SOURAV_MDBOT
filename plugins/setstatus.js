@@ -14,7 +14,6 @@ module.exports = {
 
     let buffer;
     let mediaType = "image/jpeg";
-    let tempFile;
 
     try {
       // Handle URL
@@ -24,71 +23,42 @@ module.exports = {
         mediaType = extension === "mp4" ? "video/mp4" : "image/jpeg";
 
         console.log(`[SetStatus] Downloading from URL: ${url}`);
-        const response = await axios.get(url, { 
-          responseType: "arraybuffer", 
-          timeout: 30000,
-          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
-        });
+        const response = await axios.get(url, { responseType: "arraybuffer", timeout: 30000 });
         buffer = Buffer.from(response.data);
       } else if (m.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
         const quotedMsg = m.message.extendedTextMessage.contextInfo.quotedMessage;
         if (!quotedMsg.imageMessage && !quotedMsg.videoMessage) {
-          return sock.sendMessage(jid, { text: "❌ ছবি বা ভিডিও বার্তায় উত্তর দিন।" }, { quoted: m });
+          return sock.sendMessage(jid, { text: "❌ Reply to an image or video message." }, { quoted: m });
         }
 
         console.log("[SetStatus] Downloading quoted media");
-        console.log("[SetStatus] Quoted message:", JSON.stringify(quotedMsg, null, 2));
-        buffer = await downloadMediaMessage(
-          { key: m.key, message: quotedMsg },
-          "buffer",
-          {},
-          { logger: sock.logger, reuploadRequest: sock.updateMediaMessage }
-        );
+        buffer = await downloadMediaMessage(quotedMsg, "buffer", {}, { logger: sock.logger });
         mediaType = quotedMsg.imageMessage ? "image/jpeg" : "video/mp4";
       } else {
-        return sock.sendMessage(jid, { text: "❌ URL (jpg/png/mp4) দিন বা ছবি/ভিডিওতে উত্তর দিন।\nউদাহরণ: `.setstatus https://picsum.photos/200/300`" }, { quoted: m });
+        return sock.sendMessage(jid, { text: "❌ Provide a URL (jpg/png/mp4) or reply to an image/video.\nExample: `.setstatus https://picsum.photos/200/300`" }, { quoted: m });
       }
 
       // Validate buffer
-      console.log(`[SetStatus] Buffer size: ${buffer ? buffer.length / (1024 * 1024) : 0}MB`);
       if (!buffer || buffer.length === 0) {
-        throw new Error("Media buffer is empty or invalid.");
+        throw new Error("Media buffer is empty.");
       }
 
       // Check size (max ~100MB for WhatsApp status)
       const fileSize = buffer.length / (1024 * 1024);
       if (fileSize > 100) {
-        return sock.sendMessage(jid, { text: "❌ ফাইলটি খুব বড় (সর্বোচ্চ ১০০ এমবি)।" }, { quoted: m });
+        return sock.sendMessage(jid, { text: "❌ File too large (max 100MB)." }, { quoted: m });
       }
-
-      // Save buffer to temp file
-      const downloadsDir = path.join(__dirname, "../downloads");
-      if (!fs.existsSync(downloadsDir)) {
-        fs.mkdirSync(downloadsDir, { recursive: true });
-        console.log(`[SetStatus] Created downloads directory: ${downloadsDir}`);
-      }
-      tempFile = path.join(downloadsDir, `status_${Date.now()}.${mediaType.includes("video") ? "mp4" : "jpg"}`);
-      fs.writeFileSync(tempFile, buffer);
-      console.log(`[SetStatus] Saved temp file: ${tempFile}, size: ${fileSize}MB`);
 
       // Set status
-      console.log(`[SetStatus] Sending status: ${mediaType}, size: ${fileSize}MB, JID: ${sock.user.id}`);
       await sock.sendMessage("status@broadcast", {
-        [mediaType.includes("video") ? "video" : "image"]: { url: tempFile },
-        caption: args.join(" ") || "SouravMD Status",
-        backgroundColor: "#000000",
-        font: 1,
-        statusJidList: [sock.user.id.split(":")[0] + "@s.whatsapp.net"] // Ensure visible to self
+        [mediaType.includes("video") ? "video" : "image"]: buffer,
+        caption: args.join(" ") || "SouravMD Status"
       });
 
-      // Clean up
-      fs.unlinkSync(tempFile);
-      console.log(`[SetStatus] Cleaned up: ${tempFile}`);
-
-      await sock.sendMessage(jid, { text: "✅ স্ট্যাটাস সফলভাবে সেট করা হয়েছে! দয়া করে আপনার স্ট্যাটাস চেক করুন।" }, { quoted: m });
+      await sock.sendMessage(jid, { text: "✅ Status set successfully!" }, { quoted: m });
     } catch (err) {
-      console.error("[SetStatus Error]:", err.stack || err.message);
-      await sock.sendMessage(jid, { text: `❌ স্ট্যাটাস সেট করতে ব্যর্থ।\nকারণ: ${err.message}` }, { quoted: m });
+      console.error("[SetStatus Error]:", err.message);
+      await sock.sendMessage(jid, { text: `❌ Failed to set status.\nError: ${err.message}` }, { quoted: m });
     }
   }
 };
