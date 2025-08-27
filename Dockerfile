@@ -12,18 +12,18 @@ RUN npm config set strict-ssl false \
     && npm config set proxy null \
     && npm config set https-proxy null
 
-# Install dependencies
-RUN npm install --no-proxy --force
-
-# Copy the rest of the application code
-COPY . .
-
-# Install system dependencies (git and ffmpeg) without proxy
+# Install git and other system dependencies
 RUN apt-get update -o Acquire::http::No-Proxy="deb.debian.org" && apt-get install -y \
     git \
     ffmpeg \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies
+RUN npm install --no-proxy --force
+
+# Copy the rest of the application code
+COPY . .
 
 # Environment variables will be set via Render dashboard
 # No ENV lines here; use Render's Environment tab instead
