@@ -1,38 +1,37 @@
 module.exports = {
-    name: "create",
-    command: ["create", "newgroup"],
-    execute: async (sock, m, args) => {
-        try {
-            // 1️⃣ Check for group name
-            if(!args[0]) return await sock.sendMessage(
-                m.key.remoteJid,
-                { text: "⚠️ Usage: `.create Group Name`" },
-                { quoted: m }
-            );
+  name: "create",
+  command: ["create", "newgroup"],
+  description: "Create a WhatsApp group instantly with members.",
 
-            const groupName = args.join(" ");
+  async execute(sock, msg, args) {
+    const jid = msg.key.remoteJid;
 
-            // 2️⃣ Default empty participants array (bot will be admin automatically)
-            const participants = [sock.user.id]; // Bot itself
+    try {
+      if (args.length < 2) {
+        return sock.sendMessage(jid, {
+          text: "❌ Usage: .create <group name> <@member1> <@member2> ..."
+        }, { quoted: msg });
+      }
 
-            // 3️⃣ Create group
-            const response = await sock.groupCreate(groupName, participants);
+      const groupName = args[0];
+      const mentions = msg.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
 
-            // 4️⃣ Success reply
-            const groupJid = response?.groupMetadata?.id || "Unknown JID";
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: `✅ Group created successfully!\nName: ${groupName}\nID: ${groupJid}` },
-                { quoted: m }
-            );
+      if (mentions.length === 0) {
+        return sock.sendMessage(jid, { text: "⚠️ Please mention at least one user to add." }, { quoted: msg });
+      }
 
-        } catch(e) {
-            console.error("Create.js Advanced Error:", e);
-            await sock.sendMessage(
-                m.key.remoteJid,
-                { text: `❌ Failed to create group!\nError: ${e.message}` },
-                { quoted: m }
-            );
-        }
+      // Create group
+      const group = await sock.groupCreate(groupName, mentions);
+
+      await sock.sendMessage(jid, {
+        text: `✅ Group *${groupName}* created successfully!\n\n🔗 Group ID: ${group.gid}`
+      }, { quoted: msg });
+
+    } catch (err) {
+      console.error("Group create error:", err);
+      await sock.sendMessage(jid, {
+        text: "❌ Failed to create group. Check bot permissions."
+      }, { quoted: msg });
     }
+  }
 };
