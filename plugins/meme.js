@@ -1,40 +1,36 @@
 const fetch = require("node-fetch");
 
 module.exports = {
-    name: "meme",
-    command: ["meme", "randommeme"],
-    description: "Send random memes from Reddit (unlimited)",
+  name: "meme",
+  command: ["meme", "randommeme"],
+  description: "Send random memes from Reddit (unlimited)",
 
-    async execute(sock, msg, args) {
-        try {
-            const subReddits = [
-                "memes",
-                "dankmemes",
-                "wholesomememes",
-                "me_irl",
-                "funny"
-            ];
+  async execute(sock, msg, args) {
+    try {
+      const apiSub = args[0] || "";  // Optionally allow subreddit argument
+      const endpoint = apiSub
+        ? `https://memesapi.vercel.app/give/${apiSub}`
+        : `https://memesapi.vercel.app/give`;
 
-            const randomSub = subReddits[Math.floor(Math.random() * subReddits.length)];
-            const url = `https://www.reddit.com/r/${randomSub}/random/.json`;
+      const res = await fetch(endpoint);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
 
-            let response = await fetch(url);
-            let json = await response.json();
+      const memeData = json.memes && json.memes[0];
+      if (!memeData || !memeData.url) {
+        throw new Error("No meme found");
+      }
 
-            let post = json[0].data.children[0].data;
-            let memeUrl = post.url;
-            let title = post.title;
+      await sock.sendMessage(msg.key.remoteJid, {
+        image: { url: memeData.url },
+        caption: `🤣 *${memeData.title}*\n\n🌍 from r/${memeData.subreddit}`
+      }, { quoted: msg });
 
-            await sock.sendMessage(msg.key.remoteJid, {
-                image: { url: memeUrl },
-                caption: `🤣 *${title}*\n\n🌍 from r/${randomSub}`
-            }, { quoted: msg });
-
-        } catch (e) {
-            console.log("Meme error:", e);
-            await sock.sendMessage(msg.key.remoteJid, {
-                text: "⚠️ Couldn’t fetch meme, try again!"
-            }, { quoted: msg });
-        }
+    } catch (e) {
+      console.error("Meme error:", e);
+      await sock.sendMessage(msg.key.remoteJid, {
+        text: "⚠️ Couldn’t fetch meme, try again!"
+      }, { quoted: msg });
     }
+  }
 };
