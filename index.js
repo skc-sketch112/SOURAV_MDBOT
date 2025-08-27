@@ -11,6 +11,7 @@ const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
 const fetch = require("node-fetch");
+const moment = require("moment");
 
 // ================== KEEP ALIVE SERVER ==================
 const app = express();
@@ -89,7 +90,7 @@ async function startBot() {
   });
 
   // Connection update
-  sock.ev.on("connection.update", (update) => {
+  sock.ev.on("connection.update", async (update) => {
     const { connection, qr } = update;
 
     if (qr) {
@@ -109,6 +110,92 @@ async function startBot() {
       }
     } else if (connection === "open") {
       console.log("✅ BOT CONNECTED & ACTIVE!");
+      
+      // Send advanced welcome message after QR login
+      try {
+        // Recipients: your phone number and/or group ID
+        const recipients = [
+          "YOUR_PHONE_NUMBER@s.whatsapp.net", // Replace with your number (e.g., "1234567890@s.whatsapp.net")
+          // "123456789-987654321@g.us" // Uncomment and add group ID if needed
+        ];
+        
+        // Load bot version from package.json
+        const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json")));
+        const botVersion = packageJson.version || "3.0.0";
+
+        // Randomized greetings for dynamic feel
+        const greetings = [
+          "🎉 SouravMD is now online!",
+          "🚀 SouravMD has landed!",
+          "🔥 SouravMD is ready to rock!"
+        ];
+        const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+
+        // Connection timestamp
+        const timestamp = moment().format("DD/MM/YYYY HH:mm:ss");
+
+        // Welcome message with features and image
+        const welcomeMessage = `
+${greeting}
+
+✅ *SOURAV_MD Connected succesfully💌!* (v${botVersion})
+🕒 Connected on: ${timestamp}
+
+🔥 *Why SouravMD?*
+- 🎶 Download music with .song
+- 📸 Set status with .setstatus
+- 🎨 Create stickers with .sticker
+- 🤖 AI-powered chats
+- ⚙️ Advanced automation & scrapers
+- 🏇 Raid and autoraid features
+
+📢 Join our Telegram: https://t.me/YOUR_CHANNEL
+📱 Join our WhatsApp group: https://chat.whatsapp.com/YOUR_GROUP_LINK
+Type *.menu* to explore all commands! 🚀
+        `;
+        
+        // Profile picture (replace with your hosted image URL)
+        const pfpUrl = "https://i.imgur.com/YOUR_IMAGE.jpg"; // Replace with your bot's logo/image URL
+
+        // Send to each recipient with retry logic
+        for (const recipient of recipients) {
+          let attempts = 0;
+          const maxAttempts = 3;
+          while (attempts < maxAttempts) {
+            try {
+              // Delay to ensure connection stability
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              // Download PFP
+              let imageBuffer = null;
+              try {
+                const response = await axios.get(pfpUrl, { responseType: "arraybuffer", timeout: 10000 });
+                imageBuffer = Buffer.from(response.data);
+              } catch (imgErr) {
+                console.warn(`[Welcome] Failed to download PFP: ${imgErr.message}`);
+              }
+
+              // Send message with or without image
+              await sock.sendMessage(recipient, {
+                text: welcomeMessage,
+                ...(imageBuffer ? { image: imageBuffer, caption: welcomeMessage } : {})
+              });
+              
+              console.log(`[Welcome] Sent welcome message to ${recipient}`);
+              break; // Success, exit retry loop
+            } catch (err) {
+              console.error(`[Welcome] Attempt ${attempts + 1} failed for ${recipient}:`, err.message);
+              attempts++;
+              if (attempts >= maxAttempts) {
+                console.error(`[Welcome Error]: Failed to send welcome message to ${recipient} after ${maxAttempts} attempts`);
+              }
+              await new Promise(resolve => setTimeout(resolve, 3000)); // 3s delay between retries
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[Welcome Error]: Failed to process welcome message:", err.message);
+      }
     }
   });
 
@@ -186,7 +273,8 @@ async function startBot() {
     } catch (err) {
       console.error("Keep-alive ping error:", err);
     }
-  }, 1000 * 60 * 2); // প্রতি 2 মিনিটে presence update পাঠাবে
+  }, 1000 * 60 * 2);
+
 }
 
 // ================== ERROR HANDLERS ==================
