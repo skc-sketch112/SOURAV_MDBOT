@@ -1,5 +1,5 @@
 // song.js - Advanced YouTube Audio Downloader Plugin
-const ytdl = require("ytdl-core");
+const ytdl = require("@distube/ytdl-core");
 const ytSearch = require("yt-search");
 const fs = require("fs");
 const path = require("path");
@@ -29,9 +29,10 @@ module.exports = {
       // Search or validate URL
       let url;
       let title = "Unknown Title";
+      const agent = process.env.HTTP_PROXY ? ytdl.createProxyAgent({ uri: process.env.HTTP_PROXY }) : null;
       if (ytdl.validateURL(query)) {
         url = query;
-        const info = await ytdl.getInfo(url);
+        const info = await ytdl.getInfo(url, { agent, requestOptions: { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" } } });
         title = info.videoDetails.title;
       } else {
         console.log(`[Song] Searching for: ${query}`);
@@ -54,7 +55,12 @@ module.exports = {
 
       while (attempts < maxAttempts) {
         try {
-          const stream = ytdl(url, { filter: "audioonly", quality: "highestaudio" });
+          const stream = ytdl(url, { 
+            filter: "audioonly", 
+            quality: "highestaudio",
+            agent,
+            requestOptions: { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" } }
+          });
           await new Promise((resolve, reject) => {
             ffmpeg(stream)
               .audioBitrate(128)
@@ -65,8 +71,14 @@ module.exports = {
           });
 
           // Verify file
-          if (!fs.existsSync(outFile) || fs.statSync(outFile).size === 0) {
+          const stats = fs.statSync(outFile);
+          if (!fs.existsSync(outFile) || stats.size === 0) {
             throw new Error("Downloaded audio file is missing or empty.");
+          }
+
+          // Check file size (WhatsApp max ~16MB for audio)
+          if (stats.size > 16 * 1024 * 1024) {
+            throw new Error("Audio file exceeds WhatsApp's 16MB limit.");
           }
 
           // Send MP3
