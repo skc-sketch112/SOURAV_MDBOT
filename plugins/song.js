@@ -1,6 +1,5 @@
-// song.js - Updated Song Downloader Plugin with YouTube Fixes
 const { default: makeWASocket } = require("@whiskeysockets/baileys");
-const ytdl = require("ytdl-core");
+const ytdl = require("@distube/ytdl-core");
 const yts = require("yt-search");
 const fs = require("fs");
 const path = require("path");
@@ -38,7 +37,6 @@ module.exports = {
         requestOptions: {
           headers: {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9",
           },
         },
       });
