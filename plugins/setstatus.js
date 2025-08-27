@@ -14,6 +14,7 @@ module.exports = {
 
     let buffer;
     let mediaType = "image/jpeg";
+    let tempFile;
 
     try {
       // Handle URL
@@ -36,6 +37,7 @@ module.exports = {
         }
 
         console.log("[SetStatus] Downloading quoted media");
+        console.log("[SetStatus] Quoted message:", JSON.stringify(quotedMsg, null, 2));
         buffer = await downloadMediaMessage(
           { key: m.key, message: quotedMsg },
           "buffer",
@@ -48,8 +50,9 @@ module.exports = {
       }
 
       // Validate buffer
+      console.log(`[SetStatus] Buffer size: ${buffer ? buffer.length / (1024 * 1024) : 0}MB`);
       if (!buffer || buffer.length === 0) {
-        throw new Error("Media buffer is empty.");
+        throw new Error("Media buffer is empty or invalid.");
       }
 
       // Check size (max ~100MB for WhatsApp status)
@@ -58,13 +61,31 @@ module.exports = {
         return sock.sendMessage(jid, { text: "❌ ফাইলটি খুব বড় (সর্বোচ্চ ১০০ এমবি)।" }, { quoted: m });
       }
 
+      // Save buffer to temp file
+      const downloadsDir = path.join(__dirname, "../downloads");
+      if (!fs.existsSync(downloadsDir)) {
+        fs.mkdirSync(downloadsDir, { recursive: true });
+        console.log(`[SetStatus] Created downloads directory: ${downloadsDir}`);
+      }
+      tempFile = path.join(downloadsDir, `status_${Date.now()}.${mediaType.includes("video") ? "mp4" : "jpg"}`);
+      fs.writeFileSync(tempFile, buffer);
+      console.log(`[SetStatus] Saved temp file: ${tempFile}, size: ${fileSize}MB`);
+
       // Set status
+      console.log(`[SetStatus] Sending status: ${mediaType}, size: ${fileSize}MB`);
       await sock.sendMessage("status@broadcast", {
-        [mediaType.includes("video") ? "video" : "image"]: buffer,
-        caption: args.join(" ") || "SouravMD Status"
+        [mediaType.includes("video") ? "video" : "image"]: { url: tempFile },
+        caption: args.join(" ") || "SouravMD Status",
+        backgroundColor: "#000000",
+        font: 1,
+        statusJidList: [sock.user.id] // Ensure status is visible to self
       });
 
-      await sock.sendMessage(jid, { text: "✅ স্ট্যাটাস সফলভাবে সেট করা হয়েছে!" }, { quoted: m });
+      // Clean up
+      fs.unlinkSync(tempFile);
+      console.log(`[SetStatus] Cleaned up: ${tempFile}`);
+
+      await sock.sendMessage(jid, { text: "✅ স্ট্যাটাস সফলভাবে সেট করা হয়েছে! দয়া করে আপনার স্ট্যাটাস চেক করুন।" }, { quoted: m });
     } catch (err) {
       console.error("[SetStatus Error]:", err.stack || err.message);
       await sock.sendMessage(jid, { text: `❌ স্ট্যাটাস সেট করতে ব্যর্থ।\nকারণ: ${err.message}` }, { quoted: m });
