@@ -1,91 +1,58 @@
+// plugins/ghibliart.js
 const fs = require("fs");
 const path = require("path");
-const fetch = require("node-fetch");
-const FormData = require("form-data");
 const { downloadMediaMessage } = require("@whiskeysockets/baileys");
+const OpenAI = require("openai");
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 module.exports = {
-  name: "ghibliart",
-  command: ["ghibliart", "ghibli"],
-  description: "Transform any image into Studio Ghibli style art (unlimited).",
+  name: "ghibli",
+  command: ["ghibli", "ghibliart"],
+  description: "Transform an image into Studio Ghibli art style.",
 
   async execute(sock, msg, args) {
     const jid = msg.key.remoteJid;
 
     try {
-      let imageUrl = null;
+      if (!msg.message.imageMessage) {
+        return sock.sendMessage(jid, { text: "🖼️ Please reply to an *image* to transform into Ghibli art." }, { quoted: msg });
+      }
 
-      // Ensure downloads folder exists
+      // Download original image
+      const buffer = await downloadMediaMessage(
+        msg,
+        "buffer",
+        {},
+        { reuploadRequest: sock.waUploadToServer }
+      );
+
+      // Save temp file
       const downloadsDir = path.join(__dirname, "../downloads");
-      if (!fs.existsSync(downloadsDir)) {
-        fs.mkdirSync(downloadsDir, { recursive: true });
-      }
+      if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
+      const tempFile = path.join(downloadsDir, `ghibli_${Date.now()}.jpg`);
+      fs.writeFileSync(tempFile, buffer);
 
-      // If user replied to an image
-      const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-      if (quoted?.imageMessage) {
-        const buffer = await downloadMediaMessage(
-          { message: quoted },
-          "buffer",
-          {},
-          { logger: console }
-        );
-
-        const tempPath = path.join(downloadsDir, `ghibli_${Date.now()}.jpg`);
-        fs.writeFileSync(tempPath, buffer);
-        imageUrl = tempPath;
-      } else if (args[0]?.startsWith("http")) {
-        // If user gave a URL
-        imageUrl = args[0];
-      } else {
-        return sock.sendMessage(jid, {
-          text: "⚠️ Please reply to an image or provide an image URL.\nExample: `.ghibliart <url>`"
-        }, { quoted: msg });
-      }
-
-      // --- AI Transformation ---
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) throw new Error("Missing OpenAI API key (set OPENAI_API_KEY env).");
-
-      const form = new FormData();
-      if (fs.existsSync(imageUrl)) {
-        form.append("image", fs.createReadStream(imageUrl));
-      } else {
-        const res = await fetch(imageUrl);
-        const buffer = await res.buffer();
-        const tempFile = path.join(downloadsDir, `ghibli_url_${Date.now()}.jpg`);
-        fs.writeFileSync(tempFile, buffer);
-        form.append("image", fs.createReadStream(tempFile));
-      }
-
-      form.append("prompt", "Transform this into Studio Ghibli style art, dreamy, detailed, cinematic.");
-      form.append("size", "512x512");
-
-      const res = await fetch("https://api.openai.com/v1/images/edits", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: form
+      // Send to OpenAI Image Edit API
+      const response = await openai.images.edit({
+        model: "gpt-image-1",
+        image: fs.createReadStream(tempFile),
+        prompt: "Transform this picture into a Studio Ghibli anime art style.",
+        size: "1024x1024"
       });
 
-      if (!res.ok) throw new Error(`API failed: ${res.statusText}`);
-      const json = await res.json();
-
-      const ghibliImage = json.data[0].url;
-      if (!ghibliImage) throw new Error("No Ghibli image returned!");
-
-      // Send back the transformed art
+      // Send result to WhatsApp
+      const ghibliUrl = response.data[0].url;
       await sock.sendMessage(jid, {
-        image: { url: ghibliImage },
-        caption: "✨ *Here’s your Studio Ghibli Art!*"
+        image: { url: ghibliUrl },
+        caption: "✨ Here’s your Studio Ghibli art!"
       }, { quoted: msg });
 
-      if (fs.existsSync(imageUrl)) fs.unlinkSync(imageUrl);
+      fs.unlinkSync(tempFile); // Cleanup
 
     } catch (err) {
-      console.error("Ghibli Art Error:", err);
-      await sock.sendMessage(jid, {
-        text: `❌ Failed to transform into Ghibli art.\nError: ${err.message}`
-      }, { quoted: msg });
+      console.error("[Ghibli Error]:", err);
+      await sock.sendMessage(jid, { text: "⚠️ Failed to create Ghibli art. Please try again." }, { quoted: msg });
     }
   }
 };
