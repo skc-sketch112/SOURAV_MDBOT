@@ -14,6 +14,8 @@
     "@whiskeysockets/baileys": "6.7.18",
     "@bochilteam/scraper": "^4.2.4",
     "whatsapp-web.js": "^1.32.0",
+    "genius-lyrics": "^4.4.7",
+    "lyrics-finder": "21.7.0",
     "axios": "1.7.2",
     "cheerio": "1.0.0-rc.12",
     "express": "4.19.2",
