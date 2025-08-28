@@ -22,7 +22,7 @@ module.exports = {
 
         // API keys (replace with your own)
         const TENOR_API_KEY = "AIzaSyCFAmB6jViQ-DFBJQB6PXa8IVJ1GOyHGiw"; // Get from https://developers.google.com/tenor/guides/quickstart
-        const GIPHY_API_KEY = "YOUR_GIPHY_API_KEY"; // Get from https://developers.giphy.com/
+        const GIPHY_API_KEY = "pAK5zzINaq0FCJohPglEe54LdFDKn4gm"; // Get from https://developers.giphy.com/
         const downloadsDir = path.join(__dirname, "../downloads");
         const outFile = path.join(downloadsDir, `${Date.now()}.gif`);
 
