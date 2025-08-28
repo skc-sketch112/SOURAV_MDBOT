@@ -1,12 +1,13 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const ytdl = require('ytdl-core'); // YouTube download fallback
 const { exec } = require('child_process');
 
 module.exports = {
   name: 'song',
   command: ['song', 'music', 'play'],
-  description: 'Download song audio from 15+ sources (no full-length checks)',
+  description: 'Download song audio from 15+ APIs with YouTube fallback',
 
   async execute(sock, m, args) {
     const jid = m.key.remoteJid;
@@ -27,7 +28,6 @@ module.exports = {
 
     const tempFile = path.join(downloadsDir, `${Date.now()}.mp4`);
     const outFile = path.join(downloadsDir, `${Date.now()}.mp3`);
-
     let title = query;
     let thumbUrl = null;
 
@@ -92,7 +92,7 @@ module.exports = {
           }
         } catch { return null; }
       },
-      // 6. Freesound (requires YOUR_API_KEY)
+      // 6. Freesound (needs API)
       async () => {
         try {
           const res = await axios.get(`https://freesound.org/apiv2/search/text/?query=${encodeURIComponent(query)}&token=YOUR_API_KEY`);
@@ -152,7 +152,7 @@ module.exports = {
           }
         } catch { return null; }
       },
-      // 11. SoundCloud (requires YOUR_CLIENT_ID)
+      // 11. SoundCloud (requires CLIENT_ID)
       async () => {
         try {
           const res = await axios.get(`https://api.soundcloud.com/tracks?client_id=YOUR_CLIENT_ID&q=${encodeURIComponent(query)}&limit=1`);
@@ -188,7 +188,7 @@ module.exports = {
           }
         } catch { return null; }
       },
-      // 14. Napster (requires YOUR_API_KEY)
+      // 14. Napster
       async () => {
         try {
           const res = await axios.get(`https://api.napster.com/v2.2/search/track?apikey=YOUR_API_KEY&query=${encodeURIComponent(query)}&limit=1`);
@@ -212,6 +212,19 @@ module.exports = {
           }
         } catch { return null; }
       },
+      // 16. YouTube Fallback
+      async () => {
+        try {
+          const searchRes = await axios.get(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
+          const html = searchRes.data;
+          const videoIdMatch = html.match(/"videoId":"(.*?)"/);
+          if (videoIdMatch) {
+            const videoUrl = `https://www.youtube.com/watch?v=${videoIdMatch[1]}`;
+            title = query;
+            return { url: videoUrl, youtube: true };
+          }
+        } catch { return null; }
+      }
     ];
 
     let found = null;
@@ -225,18 +238,25 @@ module.exports = {
       } catch {}
     }
 
-    if (!found) {
-      console.log('[SONG] No URL found. Stopping silently.');
-      return;
-    }
+    if (!found) return console.log('[SONG] Failed to get a song URL, stopping silently.');
 
-    const writer = fs.createWriteStream(tempFile);
-    const response = await axios({ url: found.url, method: 'GET', responseType: 'stream' });
-    response.data.pipe(writer);
-    await new Promise((resolve, reject) => {
-      writer.on('finish', resolve);
-      writer.on('error', reject);
-    });
+    // Download either normal URL or YouTube
+    if (found.youtube) {
+      await new Promise((resolve, reject) => {
+        ytdl(found.url, { filter: 'audioonly', quality: 'highestaudio' })
+          .pipe(fs.createWriteStream(tempFile))
+          .on('finish', resolve)
+          .on('error', reject);
+      });
+    } else {
+      const writer = fs.createWriteStream(tempFile);
+      const response = await axios({ url: found.url, method: 'GET', responseType: 'stream' });
+      response.data.pipe(writer);
+      await new Promise((resolve, reject) => {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+      });
+    }
 
     if (thumbUrl) {
       const thumbFile = path.join(downloadsDir, `${Date.now()}_thumb.jpg`);
