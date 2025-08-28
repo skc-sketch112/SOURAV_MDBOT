@@ -13,7 +13,7 @@ module.exports = {
     async execute(sock, m, args) {
         const jid = m.key.remoteJid;
 
-        // Ensure args are parsed properly
+        // Parse args properly
         if (!args || args.length === 0) {
             const body = m.message?.conversation || m.message?.extendedTextMessage?.text || "";
             args = body.trim().split(" ").slice(1);
@@ -30,9 +30,9 @@ module.exports = {
         const query = args.join(" ");
         console.log(`[GIF] Searching for: ${query}`);
 
-        // API keys (replace with yours or set via env)
-        const TENOR_API_KEY = process.env.TENOR_API_KEY || "pAK5zzINaq0FCJohPglEe54LdFDKn4gm";
-        const GIPHY_API_KEY = process.env.GIPHY_API_KEY || "AIzaSyCFAmB6jViQ-DFBJQB6PXa8IVJ1GOyHGiw";
+        // ✅ Your API keys (hardcoded)
+        const TENOR_API_KEY = "pAK5zzINaq0FCJohPglEe54LdFDKn4gm";
+        const GIPHY_API_KEY = "AIzaSyCFAmB6jViQ-DFBJQB6PXa8IVJ1GOyHGiw";
 
         const downloadsDir = path.join(__dirname, "../downloads");
         if (!fs.existsSync(downloadsDir)) {
@@ -56,7 +56,7 @@ module.exports = {
                 const tenorRes = await axios.get("https://tenor.googleapis.com/v2/search", {
                     params: {
                         q: query,
-                        key: pAK5zzINaq0FCJohPglEe54LdFDKn4gm,
+                        key: TENOR_API_KEY, // ✅ fixed
                         limit: 10,
                         media_filter: "gif"
                     }
@@ -74,7 +74,7 @@ module.exports = {
                 const giphyRes = await axios.get("https://api.giphy.com/v1/gifs/search", {
                     params: {
                         q: query,
-                        api_key: AIzaSyCFAmB6jViQ-DFBJQB6PXa8IVJ1GOyHGiw,
+                        api_key: GIPHY_API_KEY, // ✅ fixed
                         limit: 10,
                         rating: "pg"
                     }
