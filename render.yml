@@ -1,0 +1,16 @@
+# render.yaml
+services:
+  - type: web
+    name: souravmd-bot
+    env: docker
+    plan: free  # or starter/standard depending on your needs
+
+    # Force Render to build without buggy cache
+    buildCommand: |
+      export DOCKER_BUILDKIT=0
+      docker build --no-cache -t souravmd-bot .
+
+    startCommand: npm run dev
+
+    # Optional: auto-redeploy on push
+    autoDeploy: true
