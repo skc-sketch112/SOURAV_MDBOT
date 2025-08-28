@@ -6,7 +6,7 @@ const { exec } = require('child_process');
 module.exports = {
   name: 'song',
   command: ['song', 'music', 'play'],
-  description: 'Download full song audio from 30+ sources (excluding YouTube and Spotify previews)',
+  description: 'Download full song audio from 40+ sources (excluding YouTube and Spotify previews)',
 
   async execute(sock, m, args) {
     const jid = m.key.remoteJid;
@@ -88,6 +88,42 @@ module.exports = {
             title = track.title;
             thumbUrl = track.image || null;
             return { type: 'direct', url: track.audio_url };
+          }
+        } catch { return null; }
+      },
+      // 6. Freesound
+      async () => {
+        try {
+          const res = await axios.get(`https://freesound.org/apiv2/search/text/?query=${encodeURIComponent(query)}&token=YOUR_API_KEY`);
+          if (res.data?.results?.[0]?.previews?.['preview-hq-mp3']) {
+            const track = res.data.results[0];
+            title = track.name;
+            thumbUrl = track.images?.[0]?.uri || null;
+            return { type: 'direct', url: track.previews['preview-hq-mp3'] };
+          }
+        } catch { return null; }
+      },
+      // 7. ccMixter
+      async () => {
+        try {
+          const res = await axios.get(`https://ccmixter.org/api/query?query=${encodeURIComponent(query)}&limit=1`);
+          if (res.data?.results?.[0]?.file_url) {
+            const track = res.data.results[0];
+            title = track.title;
+            thumbUrl = track.image || null;
+            return { type: 'direct', url: track.file_url };
+          }
+        } catch { return null; }
+      },
+      // 8. Dogmazic
+      async () => {
+        try {
+          const res = await axios.get(`https://dogmazic.net/api/v1/search?query=${encodeURIComponent(query)}&limit=1`);
+          if (res.data?.data?.[0]?.file_url) {
+            const track = res.data.data[0];
+            title = track.title;
+            thumbUrl = track.image || null;
+            return { type: 'direct', url: track.file_url };
           }
         } catch { return null; }
       },
