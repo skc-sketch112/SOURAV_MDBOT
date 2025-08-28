@@ -1,14 +1,19 @@
 // lyrics.js
-// Usage: .lyrics Tum Hi Ho | .lyrics Ami Banglay Gaan Gai | .lyrics Shape of You
+// Usage: .lyrics <song name>
 
 const axios = require("axios");
 const cheerio = require("cheerio");
 const lyricsFinder = require("lyrics-finder");
+const Genius = require("genius-lyrics"); // npm install genius-lyrics
+
+const geniusClient = new Genius.Client();
+
+axios.defaults.timeout = 5000; // ⏱️ Timeout 5s per request
 
 module.exports = {
   name: "lyrics",
   command: ["lyrics", "songlyrics"],
-  description: "Fetch unlimited lyrics (Hindi, Bengali, English, etc.) with auto language detection + multiple fallbacks.",
+  description: "Fetch lyrics from 12+ sources with auto-fallback (Hindi, Bengali, English, etc.)",
 
   async execute(sock, msg, args) {
     const jid = msg.key.remoteJid;
@@ -26,150 +31,177 @@ module.exports = {
 
     let finalLyrics = null;
 
-    // ✅ Auto language detection (Hindi + Bengali + English)
-    const isBengali = /[অআইঊএঐওঔকখগঘঙচছজঝঞটঠডঢণতথদধনপফবভমযরলশষসহ]/.test(query);
-    const isHindi = /[अआइईउऊएऐओऔकखगघचछजझटठडढतथदधनपफबभमयरलवशषसह]/.test(query);
-    const isEnglish = /[a-zA-Z]/.test(query);
-
-    // Combine
-    const isIndian = isBengali || isHindi || /(arijit|shreya|kishore|rafi|lata|sonu|ar rahman|bangla|bengali|hindi|bollywood)/i.test(query);
-    const isEnglishSong = isEnglish && !isIndian;
-
-    try {
-      // 🥇 Indian songs → try Gaana + Lyricsthal first
-      if (isIndian) {
-        console.log("[LYRICS] Detected Indian language, prioritizing Gaana + Lyricsthal...");
-
-        // 🔹 Gaana
-        try {
-          const searchUrl = `https://gaana.com/search/${encodeURIComponent(query)}`;
-          const searchRes = await axios.get(searchUrl);
-          const $ = cheerio.load(searchRes.data);
-          const firstSong = $(".rt_arw").attr("href");
-          if (firstSong) {
-            const songUrl = "https://gaana.com" + firstSong;
-            const songRes = await axios.get(songUrl);
-            const $$ = cheerio.load(songRes.data);
-            const lyrics = $$(".lyrics").text().trim();
-            if (lyrics.length > 50) {
-              finalLyrics = `🎵 *Lyrics for "${query}"*\n\n${lyrics}`;
-            }
-          }
-        } catch (err) {
-          console.warn("[LYRICS] Gaana failed:", err.message);
+    // 🌐 Sources Queue (in order of priority)
+    const sources = [
+      // 1️⃣ Genius API
+      async () => {
+        const searches = await geniusClient.songs.search(query);
+        if (searches.length > 0) {
+          const song = searches[0];
+          const lyrics = await song.lyrics();
+          return lyrics ? `🎵 *${song.fullTitle}*\n\n${lyrics}` : null;
         }
+      },
 
-        // 🔹 Lyricsthal
-        if (!finalLyrics) {
-          try {
-            const searchUrl = `https://www.lyricsthal.com/?s=${encodeURIComponent(query)}`;
-            const searchRes = await axios.get(searchUrl);
-            const $ = cheerio.load(searchRes.data);
-            const firstSong = $(".entry-title a").attr("href");
-            if (firstSong) {
-              const songRes = await axios.get(firstSong);
-              const $$ = cheerio.load(songRes.data);
-              const lyrics = $$(".entry-content p").text().trim();
-              if (lyrics.length > 50) {
-                finalLyrics = `🎵 *Lyrics for "${query}"*\n\n${lyrics}`;
-              }
-            }
-          } catch (err) {
-            console.warn("[LYRICS] Lyricsthal failed:", err.message);
-          }
+      // 2️⃣ Lyrics.ovh
+      async () => {
+        const [artist, title] = query.split(" - ");
+        const res = await axios.get(
+          `https://api.lyrics.ovh/v1/${artist || ""}/${title || query}`
+        );
+        return res.data && res.data.lyrics
+          ? `🎵 *Lyrics for "${query}"*\n\n${res.data.lyrics}`
+          : null;
+      },
+
+      // 3️⃣ lyrics-finder
+      async () => {
+        const lyrics = await lyricsFinder("", query);
+        return lyrics ? `🎵 *Lyrics for "${query}"*\n\n${lyrics}` : null;
+      },
+
+      // 4️⃣ AZLyrics
+      async () => {
+        const searchUrl = `https://search.azlyrics.com/search.php?q=${encodeURIComponent(
+          query
+        )}`;
+        const searchRes = await axios.get(searchUrl);
+        const $ = cheerio.load(searchRes.data);
+        const firstSong = $(".visitedlyr a").attr("href");
+        if (firstSong) {
+          const songRes = await axios.get(firstSong);
+          const $$ = cheerio.load(songRes.data);
+          const lyrics = $$(".ringtone").nextAll("div").text().trim();
+          return lyrics && lyrics.length > 50
+            ? `🎵 *Lyrics for "${query}"*\n\n${lyrics}`
+            : null;
         }
-      }
+      },
 
-      // 🥈 English songs or fallback → Genius first
-      if (!finalLyrics && (isEnglishSong || !isIndian)) {
-        try {
-          console.log("[LYRICS] Trying Genius...");
-          const searchUrl = `https://genius.com/api/search/multi?per_page=5&q=${encodeURIComponent(query)}`;
-          const searchRes = await axios.get(searchUrl);
-          const hits = searchRes.data.response.sections.find(s => s.type === "song")?.hits;
-
-          if (hits && hits.length > 0) {
-            const songUrl = hits[0].result.url;
-            const pageRes = await axios.get(songUrl);
-            const $ = cheerio.load(pageRes.data);
-            const lyricsElems = $('[data-lyrics-container="true"]');
-            lyricsElems.find("br").replaceWith("\n");
-            lyricsElems.find("a").replaceWith((_, el) => $(el).text());
-            const lyrics = lyricsElems.text().trim();
-
-            if (lyrics && lyrics.length > 50) {
-              finalLyrics = `🎵 *${hits[0].result.full_title}*\n\n${lyrics}`;
-            }
-          }
-        } catch (err) {
-          console.warn("[LYRICS] Genius failed:", err.message);
+      // 5️⃣ SongLyrics.com
+      async () => {
+        const searchUrl = `http://www.songlyrics.com/index.php?section=search&searchW=${encodeURIComponent(
+          query
+        )}&submit=Search`;
+        const searchRes = await axios.get(searchUrl);
+        const $ = cheerio.load(searchRes.data);
+        const firstSong = $(".serpresult h3 a").attr("href");
+        if (firstSong) {
+          const songRes = await axios.get(firstSong);
+          const $$ = cheerio.load(songRes.data);
+          const lyrics = $$("#songLyricsDiv").text().trim();
+          return lyrics && lyrics.length > 50
+            ? `🎵 *Lyrics for "${query}"*\n\n${lyrics}`
+            : null;
         }
-      }
+      },
 
-      // 🥉 Lyrics.ovh API
-      if (!finalLyrics) {
-        try {
-          console.log("[LYRICS] Trying Lyrics.ovh...");
-          const [artist, title] = query.split(" - ");
-          const res = await axios.get(`https://api.lyrics.ovh/v1/${artist || ""}/${title || query}`);
-          if (res.data && res.data.lyrics) {
-            finalLyrics = `🎵 *Lyrics for "${query}"*\n\n${res.data.lyrics}`;
-          }
-        } catch (err) {
-          console.warn("[LYRICS] Lyrics.ovh failed:", err.message);
+      // 6️⃣ LyricsFreak
+      async () => {
+        const searchUrl = `https://www.lyricsfreak.com/search.php?a=search&type=song&q=${encodeURIComponent(
+          query
+        )}`;
+        const searchRes = await axios.get(searchUrl);
+        const $ = cheerio.load(searchRes.data);
+        const firstSong = $(".song").first().find("a").attr("href");
+        if (firstSong) {
+          const songUrl = "https://www.lyricsfreak.com" + firstSong;
+          const songRes = await axios.get(songUrl);
+          const $$ = cheerio.load(songRes.data);
+          const lyrics = $$(".lyrictxt").text().trim();
+          return lyrics && lyrics.length > 50
+            ? `🎵 *Lyrics for "${query}"*\n\n${lyrics}`
+            : null;
         }
-      }
+      },
 
-      // 4️⃣ lyrics-finder npm package
-      if (!finalLyrics) {
-        try {
-          console.log("[LYRICS] Trying lyrics-finder...");
-          const lyrics = await lyricsFinder("", query);
-          if (lyrics) {
-            finalLyrics = `🎵 *Lyrics for "${query}"*\n\n${lyrics}`;
-          }
-        } catch (err) {
-          console.warn("[LYRICS] lyrics-finder failed:", err.message);
+      // 7️⃣ Musixmatch
+      async () => {
+        const searchUrl = `https://www.musixmatch.com/search/${encodeURIComponent(
+          query
+        )}`;
+        const searchRes = await axios.get(searchUrl);
+        const $ = cheerio.load(searchRes.data);
+        const firstSong = $(".media-card-title a").attr("href");
+        if (firstSong) {
+          const songUrl = "https://www.musixmatch.com" + firstSong;
+          const songRes = await axios.get(songUrl);
+          const $$ = cheerio.load(songRes.data);
+          const lyrics = $$(".lyrics__content__ok").text().trim();
+          return lyrics && lyrics.length > 50
+            ? `🎵 *Lyrics for "${query}"*\n\n${lyrics}`
+            : null;
         }
-      }
+      },
 
-      // 5️⃣ Musixmatch
-      if (!finalLyrics) {
-        try {
-          console.log("[LYRICS] Trying Musixmatch...");
-          const searchUrl = `https://www.musixmatch.com/search/${encodeURIComponent(query)}`;
-          const searchRes = await axios.get(searchUrl);
-          const $ = cheerio.load(searchRes.data);
-          const firstSong = $(".media-card-title a").attr("href");
-          if (firstSong) {
-            const songUrl = "https://www.musixmatch.com" + firstSong;
-            const songRes = await axios.get(songUrl);
-            const $$ = cheerio.load(songRes.data);
-            const lyrics = $$(".lyrics__content__ok").text().trim();
-            if (lyrics.length > 50) {
-              finalLyrics = `🎵 *Lyrics for "${query}"*\n\n${lyrics}`;
-            }
-          }
-        } catch (err) {
-          console.warn("[LYRICS] Musixmatch failed:", err.message);
+      // 8️⃣ Lyricsthal (Bengali/Hindi)
+      async () => {
+        const searchUrl = `https://www.lyricsthal.com/?s=${encodeURIComponent(
+          query
+        )}`;
+        const searchRes = await axios.get(searchUrl);
+        const $ = cheerio.load(searchRes.data);
+        const firstSong = $(".entry-title a").attr("href");
+        if (firstSong) {
+          const songRes = await axios.get(firstSong);
+          const $$ = cheerio.load(songRes.data);
+          const lyrics = $$(".entry-content p").text().trim();
+          return lyrics && lyrics.length > 50
+            ? `🎵 *Lyrics for "${query}"*\n\n${lyrics}`
+            : null;
         }
+      },
+
+      // 9️⃣ Gaana
+      async () => {
+        const searchUrl = `https://gaana.com/search/${encodeURIComponent(query)}`;
+        const searchRes = await axios.get(searchUrl);
+        const $ = cheerio.load(searchRes.data);
+        const firstSong = $(".rt_arw").attr("href");
+        if (firstSong) {
+          const songUrl = "https://gaana.com" + firstSong;
+          const songRes = await axios.get(songUrl);
+          const $$ = cheerio.load(songRes.data);
+          const lyrics = $$(".lyrics").text().trim();
+          return lyrics && lyrics.length > 50
+            ? `🎵 *Lyrics for "${query}"*\n\n${lyrics}`
+            : null;
+        }
+      },
+
+      // 🔟 ChartLyrics API
+      async () => {
+        const res = await axios.get(
+          `http://api.chartlyrics.com/apiv1.asmx/SearchLyricDirect?artist=&song=${encodeURIComponent(
+            query
+          )}`
+        );
+        if (res.data && res.data.includes("<Lyric>")) {
+          const lyrics = res.data.split("<Lyric>")[1].split("</Lyric>")[0];
+          return lyrics && lyrics.length > 50
+            ? `🎵 *Lyrics for "${query}"*\n\n${lyrics}`
+            : null;
+        }
+      },
+    ];
+
+    // 🚀 Loop through sources until one works
+    for (let i = 0; i < sources.length; i++) {
+      try {
+        console.log(`[LYRICS] Trying source ${i + 1}`);
+        finalLyrics = await sources[i]();
+        if (finalLyrics) break; // stop once found
+      } catch (err) {
+        console.warn(`[LYRICS] Source ${i + 1} failed:`, err.message);
       }
-
-      // ❌ All failed
-      if (!finalLyrics) {
-        finalLyrics = `❌ Sorry, no lyrics found for *${query}*. Try another song.`;
-      }
-
-      // ✅ Send result
-      await sock.sendMessage(jid, { text: finalLyrics }, { quoted: msg });
-
-    } catch (err) {
-      console.error("[LYRICS] Fatal error:", err);
-      await sock.sendMessage(
-        jid,
-        { text: "❌ Failed to fetch lyrics. Please try again later." },
-        { quoted: msg }
-      );
     }
-  }
+
+    // ❌ All failed
+    if (!finalLyrics) {
+      finalLyrics = `❌ Sorry, no lyrics found for *${query}*. Try another song.`;
+    }
+
+    // ✅ Send result
+    await sock.sendMessage(jid, { text: finalLyrics }, { quoted: msg });
+  },
 };
