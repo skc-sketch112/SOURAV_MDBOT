@@ -1,6 +1,7 @@
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
+const { exec } = require("child_process");
 
 module.exports = {
   name: "gif",
@@ -23,7 +24,6 @@ module.exports = {
 
     let gifUrls = [];
 
-    // 🔹 Step 1: Mapping for actions (nekos.best / waifu.pics)
     const actionMap = {
       dance: "dance",
       hug: "hug",
@@ -39,27 +39,24 @@ module.exports = {
     };
 
     try {
-      // Try Nekos.best (returns multiple)
+      // Nekos.best
       if (actionMap[query]) {
-        console.log("[GIF] Trying Nekos.best...");
         const res = await axios.get(`https://nekos.best/api/v2/${actionMap[query]}?amount=5`);
         if (res.data.results?.length > 0) {
           gifUrls = res.data.results.map(r => r.url);
         }
       }
 
-      // Try Waifu.pics fallback (only 1 at a time, fetch 3 manually)
+      // Waifu.pics fallback
       if (gifUrls.length === 0 && actionMap[query]) {
-        console.log("[GIF] Trying Waifu.pics...");
         for (let i = 0; i < 3; i++) {
           const res = await axios.get(`https://api.waifu.pics/sfw/${actionMap[query]}`);
           gifUrls.push(res.data.url);
         }
       }
 
-      // 🔹 Step 2: If no mapped action, try Reddit memes (gives many results)
+      // Reddit fallback
       if (gifUrls.length === 0) {
-        console.log("[GIF] Trying Reddit (meme API)...");
         const res = await axios.get(`https://meme-api.com/gimme/${query}/5`);
         if (res.data.memes?.length > 0) {
           gifUrls = res.data.memes.map(m => m.url);
@@ -70,15 +67,18 @@ module.exports = {
 
       if (gifUrls.length === 0) throw new Error("No GIFs found");
 
-      // 🔹 Step 3: Download & send multiple GIFs
+      // Download, convert, send
       for (const gifUrl of gifUrls.slice(0, 5)) {
         try {
           const downloadsDir = path.join(__dirname, "../downloads");
           if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
+          
+          const tempFile = path.join(downloadsDir, `${Date.now()}_${Math.random()}.gif`);
           const outFile = path.join(downloadsDir, `${Date.now()}_${Math.random()}.mp4`);
 
+          // Download file
           const response = await axios({ url: gifUrl, method: "GET", responseType: "stream" });
-          const writer = fs.createWriteStream(outFile);
+          const writer = fs.createWriteStream(tempFile);
           response.data.pipe(writer);
 
           await new Promise((resolve, reject) => {
@@ -86,6 +86,16 @@ module.exports = {
             writer.on("error", reject);
           });
 
+          // Convert to mp4 with ffmpeg
+          await new Promise((resolve, reject) => {
+            exec(`ffmpeg -y -i "${tempFile}" -movflags faststart -pix_fmt yuv420p -vf scale=480:-1 "${outFile}"`,
+              (error) => {
+                if (error) reject(error);
+                else resolve();
+              });
+          });
+
+          // Send mp4
           await sock.sendMessage(
             jid,
             {
@@ -96,6 +106,7 @@ module.exports = {
             { quoted: m }
           );
 
+          fs.unlinkSync(tempFile);
           fs.unlinkSync(outFile);
         } catch (err) {
           console.error("[GIF] Failed one URL:", gifUrl, err.message);
