@@ -2,7 +2,7 @@ const axios = require("axios");
 
 module.exports = {
     name: "logo",
-    command: ["logo", "logov2", "textlogo"],
+    command: [ "logo2"],
     description: "Generate realistic logos using 6 separate APIs with fallback",
 
     async execute(sock, m, args) {
