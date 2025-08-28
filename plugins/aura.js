@@ -1,24 +1,20 @@
 // aura.js
 module.exports = {
   name: "aura",
-  command: ["aura", "checkaura", "myaura"],
+  command: ["aura", "checkaura", "myaura", "showaura"],
   description: "Check your aura with stats, fun levels, rare events. Powered by SOURAV_,MD",
 
   async execute(sock, m, args) {
     const jid = m.key.remoteJid;
     const mentioned = m.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-    let targetUser;
-
+    
     // Pick mentioned user or sender
-    if (mentioned.length > 0) {
-      targetUser = mentioned[0];
-    } else {
-      targetUser = m.sender;
-    }
+    const targetUser = mentioned[0] || m.sender || "unknown@user";
+    const name = targetUser.split("@")[0];
 
     // Random aura generation
     const maxAura = 999;
-    const auraValue = Math.floor(Math.random() * 2000); // fun over-max values
+    const auraValue = Math.floor(Math.random() * 2000); // allow fun over-max values
     const auraPercentage = Math.min((auraValue / maxAura) * 100, 100);
 
     // Aura meter bar (10 blocks)
@@ -37,9 +33,8 @@ module.exports = {
     let auraLevel = levels.find(l => auraPercentage <= l.limit)?.label || "💥 Legendary";
 
     // Rare random aura event (1% chance)
-    const rareChance = Math.random();
     let rareEvent = "";
-    if (rareChance <= 0.01) {
+    if (Math.random() <= 0.01) {
       auraLevel = "🌈 Ultimate Rainbow Aura";
       rareEvent = "\n🎉 Rare Event: You got a rainbow aura!";
     }
@@ -60,7 +55,6 @@ module.exports = {
     const randomDesc = descriptions[Math.floor(Math.random() * descriptions.length)];
 
     // Compose reply
-    const name = targetUser.split("@")[0];
     const replyText = `
 🌟 *Aura Check!* - Powered by SOURAV_,MD
 
