@@ -1,11 +1,12 @@
-// lyrics.js - Ultra Powerful Lyrics Plugin
-const { getLyrics } = require("genius-lyrics-api");
+const Genius = require("genius-lyrics");
 const axios = require("axios");
+const cheerio = require("cheerio");
+const lyricsFinder = require("lyrics-finder");
 
 module.exports = {
   name: "lyrics",
   command: ["lyrics", "songlyrics"],
-  description: "Fetch unlimited lyrics for any song (Hindi, Bengali, English, etc.)",
+  description: "Fetch unlimited lyrics for any song with multiple fallback",
 
   async execute(sock, msg, args) {
     const jid = msg.key.remoteJid;
@@ -13,49 +14,82 @@ module.exports = {
     try {
       if (!args[0]) {
         return sock.sendMessage(jid, { 
-          text: "❌ Usage: .lyrics <song name>\nExample: .lyrics Tum Hi Ho" 
+          text: "❌ Usage: .lyrics <song name>
+Example: .lyrics Tum Hi Ho" 
         }, { quoted: msg });
       }
-
       const query = args.join(" ");
-      let finalLyrics = null;
-
-      // 1️⃣ Try Genius API
+      
+      // 1. Genius API main attempt
       try {
-        const options = {
-          apiKey: process.env.GENIUS_ACCESS_TOKEN || "",
-          title: query,
-          artist: "",
-          optimizeQuery: true
-        };
-        finalLyrics = await getLyrics(options);
-      } catch (err) {
-        console.log("[Lyrics] Genius failed:", err.message);
-      }
+        const client = new Genius.Client(process.env.GENIUS_ACCESS_TOKEN || "");
+        const searches = await client.songs.search(query);
+        if (searches.length > 0) {
+          const song = searches[0];
+          const lyrics = await song.lyrics();
+          if (lyrics) {
+            const text = `🎵 *${song.title}* by *${song.artist.name}*
 
-      // 2️⃣ Fallback to Free API (lyrics.ovh)
-      if (!finalLyrics) {
-        try {
-          const res = await axios.get(`https://api.lyrics.ovh/v1/${encodeURIComponent(query)}`);
-          finalLyrics = res.data.lyrics || null;
-        } catch (err) {
-          console.log("[Lyrics] lyrics.ovh failed:", err.message);
+${lyrics}`;
+            return await sock.sendMessage(jid, { text }, { quoted: msg });
+          }
         }
+      } catch (err) {
+        console.warn("Genius API fetch failed:", err);
       }
 
-      // 3️⃣ If still no lyrics
-      if (!finalLyrics) {
-        return sock.sendMessage(jid, { text: `❌ Could not fetch lyrics for *${query}*.` }, { quoted: msg });
+      // 2. Genius web scraping fallback
+      try {
+        const searchUrl = `https://api.genius.com/search?q=${encodeURIComponent(query)}`;
+        const response = await axios.get(searchUrl, {
+          headers: { Authorization: `Bearer ${process.env.GENIUS_ACCESS_TOKEN}` }
+        });
+
+        if (response.data.response.hits.length > 0) {
+          const songUrl = response.data.response.hits[0].result.url;
+          const pageHtml = await axios.get(songUrl);
+          const $ = cheerio.load(pageHtml.data);
+
+          // Extract lyrics container
+          const lyricsElems = $('[data-lyrics-container="true"]');
+          if (lyricsElems.length) {
+            // Replace <br> with new lines & strip anchors but keep text
+            lyricsElems.find("br").replaceWith("
+");
+            lyricsElems.find("a").replaceWith((_, el) => $(el).text());
+            const lyricsText = lyricsElems.text().trim();
+
+            if (lyricsText.length > 20) {
+              const text = `🎵 *Lyrics for "${query}"*
+
+${lyricsText}`;
+              return await sock.sendMessage(jid, { text }, { quoted: msg });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Lyrics scraping failed:", err);
       }
 
-      // ✅ Send Lyrics
-      await sock.sendMessage(jid, {
-        text: `🎶 *Lyrics for:* ${query}\n\n${finalLyrics.substring(0, 4000)}`
-      }, { quoted: msg });
+      // 3. lyrics-finder npm package as last resort
+      try {
+        const lyrics = await lyricsFinder(query, "");
+        if (lyrics) {
+          const text = `🎵 *Lyrics for "${query}"*
 
-    } catch (err) {
-      console.error("[Lyrics Error]:", err);
-      await sock.sendMessage(jid, { text: "❌ Failed to fetch lyrics. Try again later." }, { quoted: msg });
+${lyrics}`;
+          return await sock.sendMessage(jid, { text }, { quoted: msg });
+        }
+      } catch (err) {
+        console.warn("lyrics-finder failed:", err);
+      }
+
+      // If all fail
+      await sock.sendMessage(jid, { text: "❌ Sorry, no lyrics found for your query." }, { quoted: msg });
+
+    } catch (error) {
+      console.error("Lyrics plugin error:", error);
+      await sock.sendMessage(jid, { text: "❌ Failed to fetch lyrics, please try again later." }, { quoted: msg });
     }
   }
 };
