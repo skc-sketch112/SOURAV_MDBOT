@@ -1,14 +1,24 @@
+// gif.js
+// Usage: .gif love | .gif dance | .gif cat
+
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 
 module.exports = {
     name: "gif",
-    command: ["gif"], // Ensures .gif is the trigger
+    command: ["gif"],
     description: "Fetch unlimited GIFs based on a search term (e.g., .gif love).",
 
     async execute(sock, m, args) {
         const jid = m.key.remoteJid;
+
+        // Ensure args are parsed properly
+        if (!args || args.length === 0) {
+            const body = m.message?.conversation || m.message?.extendedTextMessage?.text || "";
+            args = body.trim().split(" ").slice(1);
+        }
+
         if (!args[0]) {
             return sock.sendMessage(
                 jid,
@@ -20,18 +30,19 @@ module.exports = {
         const query = args.join(" ");
         console.log(`[GIF] Searching for: ${query}`);
 
-        // API keys (replace with your own)
-        const TENOR_API_KEY = "AIzaSyCFAmB6jViQ-DFBJQB6PXa8IVJ1GOyHGiw"; // Get from https://developers.google.com/tenor/guides/quickstart
-        const GIPHY_API_KEY = "pAK5zzINaq0FCJohPglEe54LdFDKn4gm"; // Get from https://developers.giphy.com/
+        // API keys (replace with yours or set via env)
+        const TENOR_API_KEY = process.env.TENOR_API_KEY || "pAK5zzINaq0FCJohPglEe54LdFDKn4gm";
+        const GIPHY_API_KEY = process.env.GIPHY_API_KEY || "AIzaSyCFAmB6jViQ-DFBJQB6PXa8IVJ1GOyHGiw";
+
         const downloadsDir = path.join(__dirname, "../downloads");
-        const outFile = path.join(downloadsDir, `${Date.now()}.gif`);
+        if (!fs.existsSync(downloadsDir)) {
+            fs.mkdirSync(downloadsDir, { recursive: true });
+        }
+
+        const outFile = path.join(downloadsDir, `${Date.now()}.mp4`);
+        let gifUrl;
 
         try {
-            // Create downloads folder
-            if (!fs.existsSync(downloadsDir)) {
-                fs.mkdirSync(downloadsDir, { recursive: true });
-            }
-
             // Notify user
             await sock.sendMessage(
                 jid,
@@ -39,50 +50,45 @@ module.exports = {
                 { quoted: m }
             );
 
-            // Try Tenor API first
-            let gifUrl;
+            // 🔹 Try Tenor first
             try {
-                console.log("[GIF] Trying Tenor API");
-                const tenorResponse = await axios.get("https://tenor.googleapis.com/v2/search", {
+                console.log("[GIF] Trying Tenor API...");
+                const tenorRes = await axios.get("https://tenor.googleapis.com/v2/search", {
                     params: {
                         q: query,
-                        key: TENOR_API_KEY,
-                        limit: 1, // Fetch one GIF for simplicity
-                        media_filter: "gif",
-                        random: true // Randomize results for variety
+                        key: pAK5zzINaq0FCJohPglEe54LdFDKn4gm,
+                        limit: 10,
+                        media_filter: "gif"
                     }
                 });
-                const results = tenorResponse.data.results;
-                if (!results || results.length === 0) {
-                    throw new Error("No GIFs found on Tenor.");
-                }
-                gifUrl = results[0].media_formats.gif.url;
-                console.log(`[GIF] Tenor GIF URL: ${gifUrl}`);
+                const results = tenorRes.data.results;
+                if (!results || results.length === 0) throw new Error("No results on Tenor.");
+                const randomGif = results[Math.floor(Math.random() * results.length)];
+                gifUrl = randomGif.media_formats.mp4?.url || randomGif.media_formats.gif?.url;
+                console.log(`[GIF] Tenor URL: ${gifUrl}`);
             } catch (tenorError) {
-                console.error("[GIF] Tenor Error:", tenorError.message);
-                // Fallback to Giphy API
-                console.log("[GIF] Trying Giphy API");
-                const giphyResponse = await axios.get("https://api.giphy.com/v1/gifs/search", {
+                console.error("[GIF] Tenor failed:", tenorError.message);
+
+                // 🔹 Fallback to Giphy
+                console.log("[GIF] Trying Giphy API...");
+                const giphyRes = await axios.get("https://api.giphy.com/v1/gifs/search", {
                     params: {
                         q: query,
-                        api_key: GIPHY_API_KEY,
-                        limit: 1,
-                        rating: "pg" // Keep content safe
+                        api_key: AIzaSyCFAmB6jViQ-DFBJQB6PXa8IVJ1GOyHGiw,
+                        limit: 10,
+                        rating: "pg"
                     }
                 });
-                const results = giphyResponse.data.data;
-                if (!results || results.length === 0) {
-                    throw new Error("No GIFs found on Giphy.");
-                }
-                gifUrl = results[0].images.original.url;
-                console.log(`[GIF] Giphy GIF URL: ${gifUrl}`);
+                const results = giphyRes.data.data;
+                if (!results || results.length === 0) throw new Error("No results on Giphy.");
+                const randomGif = results[Math.floor(Math.random() * results.length)];
+                gifUrl = randomGif.images.original.mp4 || randomGif.images.original.url;
+                console.log(`[GIF] Giphy URL: ${gifUrl}`);
             }
 
-            if (!gifUrl) {
-                throw new Error("No valid GIF URL found from either API.");
-            }
+            if (!gifUrl) throw new Error("No valid GIF URL found.");
 
-            // Download GIF
+            // 🔹 Download GIF/MP4
             const response = await axios({
                 url: gifUrl,
                 method: "GET",
@@ -91,36 +97,30 @@ module.exports = {
 
             const writer = fs.createWriteStream(outFile);
             response.data.pipe(writer);
-
-            await new Promise((resolve, reject) => {
-                writer.on("finish", resolve);
-                writer.on("error", reject);
+            await new Promise((res, rej) => {
+                writer.on("finish", res);
+                writer.on("error", rej);
             });
 
-            // Verify file
-            if (!fs.existsSync(outFile) || fs.statSync(outFile).size === 0) {
-                throw new Error("Downloaded GIF file is missing or empty.");
-            }
-
-            // Send GIF to WhatsApp
+            // Send as video (autoplay like GIF)
             await sock.sendMessage(
                 jid,
                 {
-                    document: { url: outFile },
-                    mimetype: "image/gif",
-                    fileName: `${query}.gif`
+                    video: { url: outFile },
+                    mimetype: "video/mp4",
+                    caption: `✨ Here’s your *${query}* GIF!`
                 },
                 { quoted: m }
             );
 
-            // Clean up
+            // Cleanup
             fs.unlinkSync(outFile);
-            console.log(`[GIF] Cleaned up: ${outFile}`);
+            console.log(`[GIF] Sent and deleted: ${outFile}`);
         } catch (err) {
             console.error("[GIF] Error:", err.message);
             await sock.sendMessage(
                 jid,
-                { text: `❌ Failed to fetch GIF.\nError: ${err.message}\nTry a different search term (e.g., .gif love).` },
+                { text: `❌ Failed to fetch GIF.\nError: ${err.message}` },
                 { quoted: m }
             );
         }
