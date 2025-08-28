@@ -26,14 +26,21 @@ module.exports = {
 
     let finalLyrics = null;
 
-    // 🔍 Simple language detection
-    const isIndian = /[অ-ঔক-हऌए-औक़-ॡঔঅआइউঊএঐওঔ]/.test(query) || /(arijit|shreya|kishore|rafi|lata|sonu|ar rahman|bangla|bengali|hindi|bollywood)/i.test(query);
+    // ✅ Auto language detection (Hindi + Bengali + English)
+    const isBengali = /[অআইঊএঐওঔকখগঘঙচছজঝঞটঠডঢণতথদধনপফবভমযরলশষসহ]/.test(query);
+    const isHindi = /[अआइईउऊएऐओऔकखगघचछजझटठडढतथदधनपफबभमयरलवशषसह]/.test(query);
+    const isEnglish = /[a-zA-Z]/.test(query);
+
+    // Combine
+    const isIndian = isBengali || isHindi || /(arijit|shreya|kishore|rafi|lata|sonu|ar rahman|bangla|bengali|hindi|bollywood)/i.test(query);
+    const isEnglishSong = isEnglish && !isIndian;
 
     try {
-      // 🥇 If Indian song, first try Gaana + Lyricsthal
+      // 🥇 Indian songs → try Gaana + Lyricsthal first
       if (isIndian) {
         console.log("[LYRICS] Detected Indian language, prioritizing Gaana + Lyricsthal...");
-        // Gaana
+
+        // 🔹 Gaana
         try {
           const searchUrl = `https://gaana.com/search/${encodeURIComponent(query)}`;
           const searchRes = await axios.get(searchUrl);
@@ -52,7 +59,7 @@ module.exports = {
           console.warn("[LYRICS] Gaana failed:", err.message);
         }
 
-        // Lyricsthal (Bengali focus)
+        // 🔹 Lyricsthal
         if (!finalLyrics) {
           try {
             const searchUrl = `https://www.lyricsthal.com/?s=${encodeURIComponent(query)}`;
@@ -73,8 +80,8 @@ module.exports = {
         }
       }
 
-      // 🥈 Genius scraping
-      if (!finalLyrics) {
+      // 🥈 English songs or fallback → Genius first
+      if (!finalLyrics && (isEnglishSong || !isIndian)) {
         try {
           console.log("[LYRICS] Trying Genius...");
           const searchUrl = `https://genius.com/api/search/multi?per_page=5&q=${encodeURIComponent(query)}`;
@@ -99,7 +106,7 @@ module.exports = {
         }
       }
 
-      // 🥉 Lyrics.ovh
+      // 🥉 Lyrics.ovh API
       if (!finalLyrics) {
         try {
           console.log("[LYRICS] Trying Lyrics.ovh...");
@@ -113,7 +120,7 @@ module.exports = {
         }
       }
 
-      // 4️⃣ lyrics-finder
+      // 4️⃣ lyrics-finder npm package
       if (!finalLyrics) {
         try {
           console.log("[LYRICS] Trying lyrics-finder...");
