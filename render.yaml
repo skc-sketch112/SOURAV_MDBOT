@@ -10,7 +10,4 @@ services:
       export DOCKER_BUILDKIT=0
       docker build --no-cache -t souravmd-bot .
 
-    startCommand: npm run dev
-
-    # Optional: auto-redeploy on push
     autoDeploy: true
