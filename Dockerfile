@@ -2,6 +2,7 @@ FROM node:20-bullseye
 
 WORKDIR /usr/src/app
 
+# Install build tools + ffmpeg + libvips + other dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -9,16 +10,23 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     pkg-config \
     libvips-dev \
+    libcairo2-dev \
+    libjpeg-dev \
+    libpango1.0-dev \
+    libgif-dev \
+    librsvg2-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY package*.json ./
+# Copy package.json
+COPY package.json ./
 
-# Clean cache first
-RUN npm cache clean --force
+# Remove lock file & clean cache
+RUN rm -f package-lock.json && npm cache clean --force
 
-# Install dependencies + full log
+# Install dependencies with logging
 RUN npm install --legacy-peer-deps 2>&1 | tee npm-install.log
 
+# Copy bot files
 COPY . .
 
 EXPOSE 3000
