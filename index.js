@@ -13,7 +13,14 @@ const path = require("path");
 const axios = require("axios");
 const fetch = require("node-fetch");
 const moment = require("moment");
-const figlet = require("figlet"); // Banner library
+const figlet = require("figlet"); 
+const chalk = require("chalk"); // Colorful console logs
+
+// ================== DEBUG MODE ==================
+const DEBUG_MODE = process.env.DEBUG_MODE === "true"; 
+function debugLog(...msg) {
+  if (DEBUG_MODE) console.log(chalk.cyan("[DEBUG]"), ...msg);
+}
 
 // ================== KEEP ALIVE SERVER ==================
 const app = express();
@@ -23,8 +30,8 @@ app.get("/", (req, res) => {
   res.send("✅ SOURAV_MD BOT is running and alive!");
 });
 
-app.listen(PORT, () => console.log(`🌐 Keep-alive server running on port ${PORT}`))
-   .on("error", (err) => console.error("❌ Keep-alive server error:", err.message));
+app.listen(PORT, () => console.log(chalk.green(`🌐 Keep-alive server running on port ${PORT}`)))
+   .on("error", (err) => console.error(chalk.red("❌ Keep-alive server error:"), err.message));
 
 // ================== BANNER ==================
 figlet.text("SOURAV_MD BOT", {
@@ -32,13 +39,13 @@ figlet.text("SOURAV_MD BOT", {
   horizontalLayout: "default",
   verticalLayout: "default",
 }, function(err, data) {
-  if (err) console.log("❌ Banner error:", err);
-  console.log("\n" + data);
-  console.log("🔥 Welcome to SOURAV_MD BOT - Fully Powered & Professional!\n");
+  if (err) console.log(chalk.red("❌ Banner error:"), err);
+  console.log(chalk.magenta("\n" + data));
+  console.log(chalk.yellow("🔥 Welcome to SOURAV_MD BOT - Fully Powered & Professional!\n"));
 });
 
 // ================== HEARTBEAT ==================
-setInterval(() => console.log("💓 Heartbeat: SOURAV_MD BOT still running..."), 5 * 60 * 1000);
+setInterval(() => console.log(chalk.green("💓 Heartbeat: SOURAV_MD BOT still running...")), 5 * 60 * 1000);
 
 // ================== PLUGIN SYSTEM ==================
 const commands = new Map();
@@ -57,15 +64,15 @@ function loadPlugin(file) {
     else aliases = [pluginName.toLowerCase()];
 
     aliases.forEach(alias => commands.set(alias, plugin));
-    console.log(`✅ Loaded plugin: ${pluginName} [${aliases.join(", ")}]`);
+    console.log(chalk.green(`✅ Loaded plugin:`), chalk.cyan(pluginName), `[${aliases.join(", ")}]`);
   } catch (err) {
-    console.error(`❌ Failed to load plugin ${file}:`, err.message);
+    console.error(chalk.red(`❌ Failed to load plugin ${file}:`), err.message);
   }
 }
 
 function loadPlugins() {
   commands.clear();
-  if (!fs.existsSync(PLUGIN_DIR)) return console.error(`❌ Plugins directory (${PLUGIN_DIR}) not found!`);
+  if (!fs.existsSync(PLUGIN_DIR)) return console.error(chalk.red(`❌ Plugins directory (${PLUGIN_DIR}) not found!`));
   fs.readdirSync(PLUGIN_DIR).forEach(file => file.endsWith(".js") && loadPlugin(file));
 }
 loadPlugins();
@@ -74,7 +81,7 @@ loadPlugins();
 if (fs.existsSync(PLUGIN_DIR)) {
   fs.watch(PLUGIN_DIR, (eventType, filename) => {
     if (filename && filename.endsWith(".js")) {
-      console.log(`♻️ Plugin change detected: ${filename}, reloading...`);
+      console.log(chalk.yellow(`♻️ Plugin change detected: ${filename}, reloading...`));
       loadPlugins();
     }
   });
@@ -90,24 +97,28 @@ async function startBot() {
     printQRInTerminal: true,
     qrTimeout: 0,
     auth: state,
-    version
+    version,
+    keepAliveIntervalMs: 30000, // strong keep-alive
+    syncFullHistory: true
   });
 
   // ================== CONNECTION HANDLER ==================
   sock.ev.on("connection.update", async (update) => {
     const { connection, qr } = update;
+    debugLog("Connection Update:", update);
 
-    if (qr) console.log("📲 Scan QR:\n" + `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`);
+    if (qr) console.log(chalk.blue("📲 Scan QR:\n") + `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`);
 
     if (connection === "close") {
       const reason = update.lastDisconnect?.error?.output?.statusCode;
-      if (reason === DisconnectReason.loggedOut) console.log("❌ Logged out. Delete auth folder and reconnect.");
+      console.log(chalk.red("⚠️ Connection closed. Reason:"), reason);
+      if (reason === DisconnectReason.loggedOut) console.log(chalk.red("❌ Logged out. Delete auth folder and reconnect."));
       else {
-        console.log("⚠️ Connection closed. Reconnecting in 5s...");
+        console.log(chalk.yellow("🔄 Reconnecting in 5s..."));
         setTimeout(startBot, 5000);
       }
     } else if (connection === "open") {
-      console.log("✅ SOURAV_MD BOT CONNECTED & ACTIVE!");
+      console.log(chalk.green("✅ SOURAV_MD BOT CONNECTED & ACTIVE!"));
       sendWelcome(sock);
     }
   });
@@ -118,15 +129,11 @@ async function startBot() {
   async function sendWelcome(sock) {
     try {
       const userJid = sock.user?.id?.split(":")[0] + "@s.whatsapp.net" || null;
-      if (!userJid) return console.warn("[Welcome] No valid user JID.");
+      if (!userJid) return console.warn(chalk.yellow("[Welcome] No valid user JID."));
 
       const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json")));
       const botVersion = packageJson.version || "3.0.0";
-      const greetings = [
-        "🎉 SOURAV_MD BOT is online!",
-        "🚀 SOURAV_MD BOT has landed!",
-        "🔥 SOURAV_MD BOT ready for action!"
-      ];
+      const greetings = ["🎉 SOURAV_MD BOT is online!","🚀 SOURAV_MD BOT has landed!","🔥 SOURAV_MD BOT ready for action!"];
       const greeting = greetings[Math.floor(Math.random() * greetings.length)];
       const timestamp = moment().format("DD/MM/YYYY HH:mm:ss");
 
@@ -142,27 +149,11 @@ ${greeting}
 - 🎨 .sticker (Sticker Creator)
 - 🤖 AI-powered chat & fun
 - ⚙️ Automation & advanced plugins
-
-📢 Telegram: https://t.me/YOUR_CHANNEL
-📱 WhatsApp: https://chat.whatsapp.com/YOUR_GROUP
-Type *.menu* to explore commands!
       `;
 
-      const pfpUrl = "https://i.imgur.com/YOUR_IMAGE.jpg";
-
-      let imageBuffer = null;
-      try {
-        const res = await axios.get(pfpUrl, { responseType: "arraybuffer", timeout: 10000 });
-        imageBuffer = Buffer.from(res.data);
-      } catch (err) { console.warn("[Welcome] Failed to download PFP:", err.message); }
-
-      await sock.sendMessage(userJid, {
-        text: welcomeMessage,
-        ...(imageBuffer ? { image: imageBuffer, caption: welcomeMessage } : {})
-      });
-
-      console.log("[Welcome] Welcome message sent.");
-    } catch (err) { console.error("[Welcome] Error sending message:", err.message); }
+      await sock.sendMessage(userJid, { text: welcomeMessage });
+      console.log(chalk.green("[Welcome] Welcome message sent."));
+    } catch (err) { console.error(chalk.red("[Welcome] Error sending message:"), err.message); }
   }
 
   // ================== MESSAGE HANDLER ==================
@@ -177,11 +168,15 @@ Type *.menu* to explore commands!
       m.message.videoMessage?.caption ||
       "";
 
+    debugLog("📩 New Message:", body);
+
     // Run onMessage plugins
     for (let plugin of commands.values()) {
       if (typeof plugin.onMessage === "function") {
-        try { await plugin.onMessage(sock, m); } 
-        catch (err) { console.error(`❌ onMessage plugin ${plugin.name}:`, err.message); }
+        try { 
+          debugLog(`🔧 Running onMessage plugin: ${plugin.name}`);
+          await plugin.onMessage(sock, m); 
+        } catch (err) { console.error(chalk.red(`❌ onMessage plugin ${plugin.name}:`), err.message); }
       }
     }
 
@@ -193,11 +188,13 @@ Type *.menu* to explore commands!
     let command = commands.get(cmd);
     if (command && typeof command.execute === "function") {
       try {
-        console.log(`[Command] Executing: ${cmd} from ${m.key.remoteJid}`);
+        console.log(chalk.blue(`[Command] Executing: ${cmd} from ${m.key.remoteJid}`));
+        console.time(`[Command Timer] ${cmd}`);
         await command.execute(sock, m, args, { axios, fetch, downloadMediaMessage });
-        console.log(`⚡ Command executed: ${cmd}`);
+        console.timeEnd(`[Command Timer] ${cmd}`);
+        console.log(chalk.green(`⚡ Command executed successfully: ${cmd}`));
       } catch (err) {
-        console.error(`❌ Command ${cmd} error:`, err.stack || err.message);
+        console.error(chalk.red(`❌ Command ${cmd} error:`), err.stack || err.message);
         await sock.sendMessage(m.key.remoteJid, {
           text: `⚠️ Error while executing: ${cmd}\n${err.message}`
         }, { quoted: m });
@@ -217,18 +214,21 @@ Type *.menu* to explore commands!
       const reaction = emojis[Math.floor(Math.random() * emojis.length)];
 
       await sock.sendMessage(msg.key.remoteJid, { react: { text: reaction, key: msg.key } });
-    } catch (err) { console.error("AutoReact error:", err.message); }
+      debugLog("🤖 AutoReact sent:", reaction);
+    } catch (err) { console.error(chalk.red("AutoReact error:"), err.message); }
   });
 
   // ================== KEEP ALIVE PING ==================
   setInterval(async () => {
-    try { await sock.sendPresenceUpdate("available"); console.log("📡 Keep-alive ping sent!"); } 
-    catch (err) { console.error("Keep-alive ping error:", err.message); }
+    try { 
+      await sock.sendPresenceUpdate("available"); 
+      debugLog("📡 Keep-alive ping sent!"); 
+    } catch (err) { console.error(chalk.red("Keep-alive ping error:"), err.message); }
   }, 2 * 60 * 1000);
 
   // ================== ERROR HANDLERS ==================
-  process.on("uncaughtException", (err) => console.error("❌ Uncaught Exception:", err.stack || err.message));
-  process.on("unhandledRejection", (reason) => console.error("❌ Unhandled Rejection:", reason.stack || reason));
+  process.on("uncaughtException", (err) => console.error(chalk.red("❌ Uncaught Exception:"), err.stack || err.message));
+  process.on("unhandledRejection", (reason) => console.error(chalk.red("❌ Unhandled Rejection:"), reason.stack || reason));
 }
 
 // ================== START BOT ==================
