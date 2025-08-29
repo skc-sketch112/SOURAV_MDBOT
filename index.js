@@ -5,7 +5,7 @@ const {
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
-  downloadMediaMessage
+  downloadContentFromMessage
 } = require("@whiskeysockets/baileys");
 const pino = require("pino");
 const fs = require("fs");
@@ -119,25 +119,20 @@ async function startBot() {
       }
     } else if (connection === "open") {
       console.log(chalk.green("✅ SOURAV_MD BOT CONNECTED & ACTIVE!"));
-      sendWelcome(sock);
-    }
-  });
 
-  sock.ev.on("creds.update", saveCreds);
+      // ================== DELAYED WELCOME MESSAGE (2 MINUTES) ==================
+      setTimeout(async () => {
+        try {
+          const userJid = sock.user?.id?.split(":")[0] + "@s.whatsapp.net" || null;
+          if (!userJid) return console.warn(chalk.yellow("[Welcome] No valid user JID."));
 
-  // ================== WELCOME MESSAGE ==================
-  async function sendWelcome(sock) {
-    try {
-      const userJid = sock.user?.id?.split(":")[0] + "@s.whatsapp.net" || null;
-      if (!userJid) return console.warn(chalk.yellow("[Welcome] No valid user JID."));
+          const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json")));
+          const botVersion = packageJson.version || "3.0.0";
+          const greetings = ["🎉 SOURAV_MD BOT is online!","🚀 SOURAV_MD BOT has landed!","🔥 SOURAV_MD BOT ready for action!"];
+          const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+          const timestamp = moment().format("DD/MM/YYYY HH:mm:ss");
 
-      const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json")));
-      const botVersion = packageJson.version || "3.0.0";
-      const greetings = ["🎉 SOURAV_MD BOT is online!","🚀 SOURAV_MD BOT has landed!","🔥 SOURAV_MD BOT ready for action!"];
-      const greeting = greetings[Math.floor(Math.random() * greetings.length)];
-      const timestamp = moment().format("DD/MM/YYYY HH:mm:ss");
-
-      const welcomeMessage = `
+          const welcomeMessage = `
 ${greeting}
 
 ✅ *SOURAV_MD BOT Connected!* (v${botVersion})
@@ -146,15 +141,20 @@ ${greeting}
 🔥 *Features:*
 - 🎶 .song (Music Downloader)
 - 📸 .setstatus (Update Status)
+- 📸 .vv (Retrieve view-once photos)
 - 🎨 .sticker (Sticker Creator)
 - 🤖 AI-powered chat & fun
 - ⚙️ Automation & advanced plugins
-      `;
+          `;
 
-      await sock.sendMessage(userJid, { text: welcomeMessage });
-      console.log(chalk.green("[Welcome] Welcome message sent."));
-    } catch (err) { console.error(chalk.red("[Welcome] Error sending message:"), err.message); }
-  }
+          await sock.sendMessage(userJid, { text: welcomeMessage });
+          console.log(chalk.green("[Welcome] Welcome message sent."));
+        } catch (err) { console.error(chalk.red("[Welcome] Error sending message:"), err.message); }
+      }, 2 * 60 * 1000); // 2 minutes delay
+    }
+  });
+
+  sock.ev.on("creds.update", saveCreds);
 
   // ================== MESSAGE HANDLER ==================
   sock.ev.on("messages.upsert", async ({ messages }) => {
@@ -190,7 +190,7 @@ ${greeting}
       try {
         console.log(chalk.blue(`[Command] Executing: ${cmd} from ${m.key.remoteJid}`));
         console.time(`[Command Timer] ${cmd}`);
-        await command.execute(sock, m, args, { axios, fetch, downloadMediaMessage });
+        await command.execute(sock, m, args, { axios, fetch, downloadContentFromMessage });
         console.timeEnd(`[Command Timer] ${cmd}`);
         console.log(chalk.green(`⚡ Command executed successfully: ${cmd}`));
       } catch (err) {
