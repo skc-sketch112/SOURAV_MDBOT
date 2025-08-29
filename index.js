@@ -1,25 +1,20 @@
 // ================== IMPORTS ==================
-import fs from "fs";
-import path from "path";
-import express from "express";
-import pino from "pino";
-import axios from "axios";
-import fetch from "node-fetch";
-import moment from "moment";
-import figlet from "figlet";
-import chalk from "chalk";
-
-import {
-  default as makeWASocket,
+const express = require("express");
+const {
+  default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
   downloadContentFromMessage
-} from "@whiskeysockets/baileys";
-
-import { fileURLToPath } from "url";
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+} = require("@whiskeysockets/baileys");
+const pino = require("pino");
+const fs = require("fs");
+const path = require("path");
+const axios = require("axios");
+const fetch = require("node-fetch");
+const moment = require("moment");
+const figlet = require("figlet"); 
+const chalk = require("chalk"); // Colorful console logs
 
 // ================== DEBUG MODE ==================
 const DEBUG_MODE = process.env.DEBUG_MODE === "true"; 
@@ -56,10 +51,10 @@ setInterval(() => console.log(chalk.green("💓 Heartbeat: SOURAV_MD BOT still r
 const commands = new Map();
 const PLUGIN_DIR = path.join(__dirname, "plugins");
 
-async function loadPlugin(file) {
+function loadPlugin(file) {
   try {
-    const pluginModule = await import(`./plugins/${file}`);
-    const plugin = pluginModule.default;
+    delete require.cache[require.resolve(path.join(PLUGIN_DIR, file))];
+    const plugin = require(path.join(PLUGIN_DIR, file));
 
     const pluginName = plugin.name || file.replace(".js", "");
     let aliases = [];
@@ -75,22 +70,19 @@ async function loadPlugin(file) {
   }
 }
 
-async function loadPlugins() {
+function loadPlugins() {
   commands.clear();
   if (!fs.existsSync(PLUGIN_DIR)) return console.error(chalk.red(`❌ Plugins directory (${PLUGIN_DIR}) not found!`));
-  const files = fs.readdirSync(PLUGIN_DIR).filter(file => file.endsWith(".js"));
-  for (const file of files) {
-    await loadPlugin(file);
-  }
+  fs.readdirSync(PLUGIN_DIR).forEach(file => file.endsWith(".js") && loadPlugin(file));
 }
-await loadPlugins();
+loadPlugins();
 
 // Hot reload plugins
 if (fs.existsSync(PLUGIN_DIR)) {
-  fs.watch(PLUGIN_DIR, async (eventType, filename) => {
+  fs.watch(PLUGIN_DIR, (eventType, filename) => {
     if (filename && filename.endsWith(".js")) {
       console.log(chalk.yellow(`♻️ Plugin change detected: ${filename}, reloading...`));
-      await loadPlugins();
+      loadPlugins();
     }
   });
 }
@@ -106,7 +98,7 @@ async function startBot() {
     qrTimeout: 0,
     auth: state,
     version,
-    keepAliveIntervalMs: 30000,
+    keepAliveIntervalMs: 30000, // strong keep-alive
     syncFullHistory: true
   });
 
@@ -158,7 +150,7 @@ ${greeting}
           await sock.sendMessage(userJid, { text: welcomeMessage });
           console.log(chalk.green("[Welcome] Welcome message sent."));
         } catch (err) { console.error(chalk.red("[Welcome] Error sending message:"), err.message); }
-      }, 2 * 60 * 1000);
+      }, 2 * 60 * 1000); // 2 minutes delay
     }
   });
 
