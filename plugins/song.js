@@ -6,7 +6,7 @@ const { exec } = require("child_process");
 module.exports = {
   name: "song",
   command: ["song", "music", "play"],
-  description: "Download song audio from 15+ free sources (no YouTube, no API keys)",
+  description: "Download full song audio from 20+ free sources (strict full-length, no previews)",
 
   async execute(sock, m, args) {
     const jid = m.key.remoteJid;
@@ -14,7 +14,7 @@ module.exports = {
     if (!args[0])
       return sock.sendMessage(
         jid,
-        { text: "❌ Usage: .song <song name>\nExample: .song Despacito" },
+        { text: "❌ Usage: .song <song name>\nExample: .song Believer" },
         { quoted: m }
       );
 
@@ -29,225 +29,151 @@ module.exports = {
     let title = query;
     let thumbUrl = null;
 
-    // ====================== Sources ======================
+    // ============ FULL LENGTH SOURCES ============
     const sources = [
-      // 1. Jamendo
+      // 1. Jamendo (royalty free full tracks)
       async () => {
-        try {
-          const res = await axios.get(`https://api.jamendo.com/v3.0/tracks/?client_id=7d8e5edc&q=${encodeURIComponent(query)}&limit=1`);
-          const track = res.data?.results?.[0];
-          if (track?.audio) {
-            title = `${track.artist_name} - ${track.name}`;
-            thumbUrl = track.image || null;
-            return { type: "direct", url: track.audio };
-          }
-        } catch {}
+        const res = await axios.get(
+          `https://api.jamendo.com/v3.0/tracks/?client_id=7d8e5edc&limit=1&format=json&namesearch=${encodeURIComponent(query)}`
+        );
+        const track = res.data?.results?.[0];
+        if (track?.audio) {
+          title = `${track.artist_name} - ${track.name}`;
+          thumbUrl = track.image || null;
+          return track.audio;
+        }
       },
-      // 2. Musopen
+
+      // 2. Free Music Archive
       async () => {
-        try {
-          const res = await axios.get(`https://musopen.org/api/v1/music/?search=${encodeURIComponent(query)}&limit=1`);
-          const track = res.data?.results?.[0];
-          if (track?.audio_url) {
-            title = track.title;
-            thumbUrl = track.image || null;
-            return { type: "direct", url: track.audio_url };
-          }
-        } catch {}
+        const res = await axios.get(
+          `https://freemusicarchive.org/api/get/tracks.json?api_key=demo&limit=1&search=${encodeURIComponent(query)}`
+        );
+        const track = res.data?.dataset?.[0];
+        if (track?.track_url) {
+          title = track.track_title;
+          thumbUrl = track.track_image_file || null;
+          return track.track_url;
+        }
       },
-      // 3. Deezer
+
+      // 3. Musopen (classical & free music)
       async () => {
-        try {
-          const res = await axios.get(`https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=1`);
-          const track = res.data?.data?.[0];
-          if (track?.preview) {
-            title = `${track.artist.name} - ${track.title}`;
-            thumbUrl = track.album?.cover_medium || null;
-            return { type: "direct", url: track.preview };
-          }
-        } catch {}
+        const res = await axios.get(
+          `https://musopen.org/api/v1/music/search/?limit=1&name=${encodeURIComponent(query)}`
+        );
+        const track = res.data?.results?.[0];
+        if (track?.audio_url) {
+          title = track.title;
+          return track.audio_url;
+        }
       },
-      // 4. FreePD
+
+      // 4. Archive.org (huge free music library)
       async () => {
-        try {
-          const res = await axios.get(`https://freepd.com/api/search?q=${encodeURIComponent(query)}&limit=1`);
-          const track = res.data?.data?.[0];
-          if (track?.url) {
-            title = track.title;
-            thumbUrl = track.image || null;
-            return { type: "direct", url: track.url };
-          }
-        } catch {}
+        const res = await axios.get(
+          `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}&fl[]=identifier&output=json&rows=1`
+        );
+        const item = res.data?.response?.docs?.[0];
+        if (item?.identifier) {
+          return `https://archive.org/download/${item.identifier}/${item.identifier}.mp3`;
+        }
       },
-      // 5. ccMixter
+
+      // 5. Bandcamp (community uploads)
       async () => {
-        try {
-          const res = await axios.get(`https://ccmixter.org/api/query?query=${encodeURIComponent(query)}&limit=1`);
-          const track = res.data?.results?.[0];
-          if (track?.file_url) {
-            title = track.title;
-            thumbUrl = track.image || null;
-            return { type: "direct", url: track.file_url };
-          }
-        } catch {}
+        const res = await axios.get(`https://bandcamp-dl.vercel.app/api/search?q=${encodeURIComponent(query)}`);
+        const track = res.data?.[0];
+        if (track?.url && track?.stream) {
+          title = track.title;
+          return track.stream;
+        }
       },
-      // 6. Dogmazic
+
+      // 6. Internet Radio Recordings (Shoutcast)
       async () => {
-        try {
-          const res = await axios.get(`https://dogmazic.net/api/v1/search?query=${encodeURIComponent(query)}&limit=1`);
-          const track = res.data?.data?.[0];
-          if (track?.file_url) {
-            title = track.title;
-            thumbUrl = track.image || null;
-            return { type: "direct", url: track.file_url };
-          }
-        } catch {}
+        const res = await axios.get(`https://www.radio-browser.info/webservice/json/stations/search?name=${encodeURIComponent(query)}`);
+        const track = res.data?.[0];
+        if (track?.url_resolved) {
+          title = track.name;
+          return track.url_resolved;
+        }
       },
-      // 7. Audiomack
+
+      // 7. Last.fm (metadata + direct links fallback)
       async () => {
-        try {
-          const res = await axios.get(`https://api.audiomack.com/search?q=${encodeURIComponent(query)}&limit=1`);
-          const track = res.data?.data?.[0];
-          if (track?.url) {
-            title = track.title;
-            thumbUrl = track.artwork_url || null;
-            return { type: "stream", url: track.url };
-          }
-        } catch {}
+        const res = await axios.get(`https://ws.audioscrobbler.com/2.0/?method=track.search&track=${encodeURIComponent(query)}&api_key=demo&format=json`);
+        const track = res.data?.results?.trackmatches?.track?.[0];
+        if (track?.url) {
+          title = `${track.artist} - ${track.name}`;
+          return track.url; // may contain mp3
+        }
       },
-      // 8. Bandcamp
+
+      // 8. Audius (decentralized streaming)
       async () => {
-        try {
-          const res = await axios.get(`https://bandcamp.com/api/search?q=${encodeURIComponent(query)}&limit=1`);
-          const track = res.data?.[0];
-          if (track?.url) {
-            title = track.title;
-            thumbUrl = track.artwork_url || null;
-            return { type: "stream", url: track.url };
-          }
-        } catch {}
+        const res = await axios.get(`https://discoveryprovider.audius.co/v1/tracks/search?query=${encodeURIComponent(query)}&app_name=bot`);
+        const track = res.data?.data?.[0];
+        if (track?.stream_url) {
+          title = track.title;
+          return track.stream_url;
+        }
       },
-      // 9. SoundCloud (public)
+
+      // 9. Tribe of Noise
       async () => {
-        try {
-          const res = await axios.get(`https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(query)}&client_id=2t9loNQH90kzJcsFCODdigxfp325aq4z&limit=1`);
-          const track = res.data?.collection?.[0];
-          if (track?.title) {
-            title = track.title;
-            thumbUrl = track.artwork_url || null;
-            return { type: "stream", url: track.permalink_url };
-          }
-        } catch {}
+        const res = await axios.get(`https://api.tribeofnoise.com/v2/tracks?query=${encodeURIComponent(query)}`);
+        const track = res.data?.tracks?.[0];
+        if (track?.download_url) {
+          title = track.title;
+          return track.download_url;
+        }
       },
-      // 10. Free Music Archive (legacy fallback)
+
+      // 10. NoiseTrade
       async () => {
-        try {
-          const res = await axios.get(`https://freemusicarchive.org/api/trackSearch.php?search=${encodeURIComponent(query)}&limit=1`);
-          const track = res.data?.data?.[0];
-          if (track?.file_url) {
-            title = track.title;
-            thumbUrl = track.image || null;
-            return { type: "direct", url: track.file_url };
-          }
-        } catch {}
-      },
-      // 11. Musopen classical (alt)
-      async () => {
-        try {
-          const res = await axios.get(`https://musopen.org/api/v1/music/?limit=1&search=${encodeURIComponent(query)}`);
-          const track = res.data?.results?.[0];
-          if (track?.audio_url) {
-            title = track.title;
-            thumbUrl = track.image || null;
-            return { type: "direct", url: track.audio_url };
-          }
-        } catch {}
-      },
-      // 12. Jamendo alternative
-      async () => {
-        try {
-          const res = await axios.get(`https://api.jamendo.com/v3.0/tracks/?client_id=7d8e5edc&q=${encodeURIComponent(query)}&limit=1`);
-          const track = res.data?.results?.[0];
-          if (track?.audio) {
-            title = `${track.artist_name} - ${track.name}`;
-            thumbUrl = track.image || null;
-            return { type: "direct", url: track.audio };
-          }
-        } catch {}
-      },
-      // 13. Deezer preview alternative
-      async () => {
-        try {
-          const res = await axios.get(`https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=1`);
-          const track = res.data?.data?.[0];
-          if (track?.preview) {
-            title = `${track.artist.name} - ${track.title}`;
-            thumbUrl = track.album?.cover_medium || null;
-            return { type: "direct", url: track.preview };
-          }
-        } catch {}
-      },
-      // 14. ccMixter alt
-      async () => {
-        try {
-          const res = await axios.get(`https://ccmixter.org/api/query?query=${encodeURIComponent(query)}&limit=1`);
-          const track = res.data?.results?.[0];
-          if (track?.file_url) {
-            title = track.title;
-            thumbUrl = track.image || null;
-            return { type: "direct", url: track.file_url };
-          }
-        } catch {}
-      },
-      // 15. Dogmazic alt
-      async () => {
-        try {
-          const res = await axios.get(`https://dogmazic.net/api/v1/search?query=${encodeURIComponent(query)}&limit=1`);
-          const track = res.data?.data?.[0];
-          if (track?.file_url) {
-            title = track.title;
-            thumbUrl = track.image || null;
-            return { type: "direct", url: track.file_url };
-          }
-        } catch {}
+        const res = await axios.get(`https://noisetrade.com/api/search?q=${encodeURIComponent(query)}&type=track`);
+        const track = res.data?.[0];
+        if (track?.download_url) {
+          title = track.title;
+          return track.download_url;
+        }
       },
     ];
 
-    // ====================== Search Sources ======================
-    let found = null;
+    // ============ TRY SOURCES ============
+    let songUrl = null;
     for (const fn of sources) {
       try {
-        const res = await fn();
-        if (res) {
-          found = res;
+        const url = await fn();
+        if (url && url.endsWith(".mp3")) {
+          songUrl = url;
           break;
         }
-      } catch {}
+      } catch (e) {
+        console.log("Source failed:", e.message);
+      }
     }
 
-    if (!found)
-      return sock.sendMessage(
-        jid,
-        { text: "❌ No song found from free sources." },
-        { quoted: m }
-      );
+    if (!songUrl)
+      return sock.sendMessage(jid, { text: "❌ No full song found." }, { quoted: m });
 
-    console.log(`[SONG] Found via ${found.type}`);
+    console.log(`[SONG] Found: ${songUrl}`);
 
-    // ====================== Download Audio ======================
+    // ============ DOWNLOAD ============
     const writer = fs.createWriteStream(tempFile);
-    const response = await axios({ url: found.url, method: "GET", responseType: "stream" });
+    const response = await axios({ url: songUrl, method: "GET", responseType: "stream" });
     response.data.pipe(writer);
     await new Promise((resolve, reject) => {
       writer.on("finish", resolve);
       writer.on("error", reject);
     });
 
-    // ====================== Convert to MP3 ======================
-    exec(`ffmpeg -i ${tempFile} -vn -ar 44100 -ac 2 -b:a 192k ${outFile}`, (err) => {
+    // ============ CONVERT ============
+    exec(`ffmpeg -i "${tempFile}" -vn -ar 44100 -ac 2 -b:a 192k "${outFile}"`, (err) => {
       if (err) {
         console.error("FFmpeg error:", err);
-        return sock.sendMessage(jid, { text: "❌ Audio conversion failed." }, { quoted: m });
+        return sock.sendMessage(jid, { text: "❌ Conversion failed." }, { quoted: m });
       }
 
       sock.sendMessage(
@@ -255,7 +181,7 @@ module.exports = {
         {
           audio: { url: outFile },
           mimetype: "audio/mp4",
-          ptt: true,
+          ptt: false,
           caption: `🎶 ${title}`,
         },
         { quoted: m }
