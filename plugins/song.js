@@ -1,112 +1,100 @@
 const axios = require("axios");
 const fs = require("fs");
-const path = require("path");
+const ytdl = require("@distube/ytdl-core");
+const { jidDecode } = require("@whiskeysockets/baileys");
 
 module.exports = {
   name: "song",
-  alias: ["music", "play"],
-  desc: "Download full songs with 15 fallback APIs (auto retry)",
+  alias: ["play", "music"],
+  desc: "Download songs from multiple APIs",
   category: "media",
-  usage: ".song <song name>",
-  async execute(sock, m, args) {
+  usage: ".song <query>",
+  react: "🎶",
+
+  start: async (client, m, { text, prefix, command }) => {
     try {
-      if (!args[0]) {
-        return await sock.sendMessage(m.chat, { text: "❌ Please provide a song name!" }, { quoted: m });
-      }
+      if (!text) return client.sendMessage(m.key.remoteJid, { text: `❌ Usage: ${prefix+command} despacito` }, { quoted: m });
 
-      const query = args.join(" ");
-      await sock.sendMessage(m.chat, { text: `🎶 Searching for *${query}*...` }, { quoted: m });
+      const senderJid = m.key?.remoteJid || m.chat || "unknown@s.whatsapp.net";
+      const senderDecoded = jidDecode(senderJid) || {};
+      const user = senderDecoded.user || senderJid.split("@")[0];
 
-      // === 15 APIs ===
+      await client.sendMessage(m.chat, { text: `🔎 Searching for *${text}*... please wait` }, { quoted: m });
+
+      // 15 API endpoints (replace with real ones you have)
       const apis = [
-        { url: `https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}&limit=1`, path: r => r.data?.data?.results?.[0]?.downloadUrl?.[4]?.link },
-        { url: `https://wynk-api.vercel.app/search?query=${encodeURIComponent(query)}`, path: r => r.data?.song?.downloadUrl },
-        { url: `https://spotifyapi.caliphdevs.workers.dev/?q=${encodeURIComponent(query)}`, path: r => r.data?.url },
-        { url: `https://mp3-apis.vercel.app/search?query=${encodeURIComponent(query)}`, path: r => r.data?.result?.[0]?.download_url },
-        { url: `https://ganaapi.vercel.app/song?name=${encodeURIComponent(query)}`, path: r => r.data?.downloadUrl },
-        { url: `https://hungama-api.vercel.app/search?song=${encodeURIComponent(query)}`, path: r => r.data?.result?.[0]?.downloadUrl },
-        { url: `https://boomplay-api.vercel.app/search?query=${encodeURIComponent(query)}`, path: r => r.data?.result?.[0]?.downloadUrl },
-        { url: `https://soundapi.vercel.app/find?song=${encodeURIComponent(query)}`, path: r => r.data?.song?.download },
-        { url: `https://music-api-1.vercel.app/search?query=${encodeURIComponent(query)}`, path: r => r.data?.result?.[0]?.url },
-        { url: `https://music-api-2.vercel.app/search?query=${encodeURIComponent(query)}`, path: r => r.data?.result?.[0]?.url },
-        { url: `https://musicapi-bot.vercel.app/song?name=${encodeURIComponent(query)}`, path: r => r.data?.download },
-        { url: `https://songs-api.vercel.app/search?q=${encodeURIComponent(query)}`, path: r => r.data?.songs?.[0]?.downloadUrl },
-        { url: `https://musix-api.vercel.app/song?query=${encodeURIComponent(query)}`, path: r => r.data?.track?.url },
-        { url: `https://tuneapi.vercel.app/find?track=${encodeURIComponent(query)}`, path: r => r.data?.result?.url },
-        { url: `https://audiomp3api.vercel.app/search?song=${encodeURIComponent(query)}`, path: r => r.data?.result?.[0]?.download }
+        `https://api1.example.com/song?query=${encodeURIComponent(text)}`,
+        `https://api2.example.com/play?search=${encodeURIComponent(text)}`,
+        `https://api3.example.com/music?name=${encodeURIComponent(text)}`,
+        `https://api4.example.com/download?song=${encodeURIComponent(text)}`,
+        `https://api5.example.com/find?track=${encodeURIComponent(text)}`,
+        `https://api6.example.com/play/${encodeURIComponent(text)}`,
+        `https://api7.example.com/song/${encodeURIComponent(text)}`,
+        `https://api8.example.com/api?music=${encodeURIComponent(text)}`,
+        `https://api9.example.com/get?song=${encodeURIComponent(text)}`,
+        `https://api10.example.com/songdl?name=${encodeURIComponent(text)}`,
+        `https://api11.example.com/search?audio=${encodeURIComponent(text)}`,
+        `https://api12.example.com/playmusic?query=${encodeURIComponent(text)}`,
+        `https://api13.example.com/downloadtrack?q=${encodeURIComponent(text)}`,
+        `https://api14.example.com/musicdl?song=${encodeURIComponent(text)}`,
+        `https://api15.example.com/songsearch?track=${encodeURIComponent(text)}`
       ];
 
       let success = false;
-
-      for (let i = 0; i < apis.length; i++) {
-        const api = apis[i];
-        const apiNum = i + 1;
-
-        // 🔄 Notify which API is being tried
-        await sock.sendMessage(m.chat, { text: `🔄 Trying API #${apiNum} ...` }, { quoted: m });
-
+      for (let url of apis) {
         try {
-          const res = await axios.get(api.url, { timeout: 15000 });
-          const url = api.path(res);
+          console.log(`🔗 Trying API: ${url}`);
+          let res = await axios.get(url, { timeout: 20000 });
+          
+          if (!res.data || !res.data.url) throw new Error("No valid song found in response");
 
-          if (!url) {
-            await sock.sendMessage(m.chat, { text: `⚠️ API #${apiNum} returned no result.` }, { quoted: m });
+          let songUrl = res.data.url;
+
+          // validate song length (not 0:00)
+          if (res.data.duration && res.data.duration === "0:00") {
+            console.log(`⚠️ Skipping invalid duration from ${url}`);
             continue;
           }
 
-          const filePath = path.join(__dirname, `temp_${Date.now()}.mp3`);
+          const filePath = `./temp/${Date.now()}.mp3`;
           const writer = fs.createWriteStream(filePath);
 
-          const response = await axios({
-            url,
-            method: "GET",
-            responseType: "stream",
-            timeout: 60000,
-            validateStatus: status => status < 400
-          });
-
-          response.data.pipe(writer);
+          let songStream = await axios.get(songUrl, { responseType: "stream" });
+          songStream.data.pipe(writer);
 
           await new Promise((resolve, reject) => {
             writer.on("finish", resolve);
             writer.on("error", reject);
           });
 
-          const stats = fs.statSync(filePath);
-          if (stats.size < 50000) {
-            fs.unlinkSync(filePath);
-            await sock.sendMessage(m.chat, { text: `❌ API #${apiNum} gave broken file. Retrying...` }, { quoted: m });
-            continue;
-          }
-
-          await sock.sendMessage(
+          await client.sendMessage(
             m.chat,
             {
               audio: fs.readFileSync(filePath),
               mimetype: "audio/mpeg",
-              fileName: `${query}.mp3`
+              fileName: `${text}.mp3`,
+              caption: `✅ Here's your song *${text}* requested by @${user}`,
+              contextInfo: { mentionedJid: [senderJid] }
             },
             { quoted: m }
           );
 
           fs.unlinkSync(filePath);
-          await sock.sendMessage(m.chat, { text: `✅ Song delivered via API #${apiNum}` }, { quoted: m });
           success = true;
-          break;
-
+          break; // exit loop after success
         } catch (err) {
-          await sock.sendMessage(m.chat, { text: `❌ API #${apiNum} failed. Trying next...` }, { quoted: m });
-          continue;
+          console.error(`❌ API failed: ${url}`, err.message);
+          continue; // try next API
         }
       }
 
       if (!success) {
-        await sock.sendMessage(m.chat, { text: "❌ All 15 APIs failed. Song not found." }, { quoted: m });
+        return client.sendMessage(m.chat, { text: `❌ Failed to fetch song: ${text}\nTry again later.` }, { quoted: m });
       }
 
     } catch (err) {
-      console.error("SONG ERROR:", err.message);
-      await sock.sendMessage(m.chat, { text: "❌ Fatal error while fetching song." }, { quoted: m });
+      console.error("❌ Command song error:", err);
+      client.sendMessage(m.chat, { text: `❌ Error: ${err.message}` }, { quoted: m });
     }
   }
 };
