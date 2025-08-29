@@ -9,16 +9,17 @@ module.exports = {
   command: ["vv"],
   desc: "Retrieve any photo sent, including view-once. Powered by SOURAV_MD",
 
-  // This function intercepts incoming messages
   async onMessage(sock, m) {
     try {
-      const messageType = Object.keys(m.message || {})[0];
-      if (messageType === "imageMessage") {
-        const buffer = await sock.downloadMediaMessage({ message: m.message });
-        const fileName = path.join(PHOTO_DIR, `photo-${Date.now()}.jpg`);
-        fs.writeFileSync(fileName, buffer);
-        console.log("Saved incoming photo:", fileName);
-      }
+      // Support normal images and view-once images
+      let imageMessage = m.message?.imageMessage || m.message?.viewOnceMessage?.message?.imageMessage;
+      if (!imageMessage) return; // Not an image
+
+      // Download media
+      const buffer = await sock.downloadMediaMessage(m);
+      const fileName = path.join(PHOTO_DIR, `photo-${Date.now()}.jpg`);
+      fs.writeFileSync(fileName, buffer);
+      console.log("Saved incoming photo:", fileName);
     } catch (err) {
       console.error("Failed to save incoming photo:", err);
     }
@@ -27,7 +28,6 @@ module.exports = {
   async execute(sock, m, args) {
     const chat = m.key.remoteJid;
     try {
-      // List all saved photos
       const files = fs.readdirSync(PHOTO_DIR);
       if (!files.length) {
         return sock.sendMessage(chat, { text: "❌ No saved photos yet!" }, { quoted: m });
@@ -40,7 +40,6 @@ module.exports = {
       await sock.sendMessage(chat, {
         image: buffer,
         caption: "✅ Here’s your secret photo!\n\nPowered by SOURAV_MD",
-        mimetype: "image/jpeg",
         fileName: lastPhoto
       }, { quoted: m });
 
