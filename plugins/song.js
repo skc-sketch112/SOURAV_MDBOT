@@ -1,14 +1,17 @@
 const axios = require("axios");
 
+// helper delay function
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
 module.exports = {
     name: "song",
     alias: ["play", "music"],
-    desc: "Download full song from multiple APIs (auto retry until success)",
+    desc: "Download full song (loop through APIs until success)",
     category: "media",
     usage: ".song <song name>",
     react: "🎵",
 
-    start: async (sock, m, { text, pushName }) => {
+    start: async (sock, m, { text }) => {
         if (!text) return sock.sendMessage(m.chat, { text: "❌ Please provide a song name!" }, { quoted: m });
 
         const apis = [
@@ -29,20 +32,22 @@ module.exports = {
             q => `https://ytmusicapi.vercel.app/song?search=${encodeURIComponent(q)}`
         ];
 
-        let success = false;
+        sock.sendMessage(m.chat, { text: `🔎 Searching "${text}"... I will keep trying until I find it ✅` }, { quoted: m });
 
-        sock.sendMessage(m.chat, { text: `🔎 Searching for "${text}" across 15 APIs...` }, { quoted: m });
+        let found = false;
+        let round = 0;
 
-        while (!success) { // 🔁 infinite retry until any API gives valid song
+        while (!found) {
+            round++;
             for (let i = 0; i < apis.length; i++) {
                 try {
                     let url = apis[i](text);
-                    console.log(`⚡ Trying API ${i + 1}: ${url}`);
+                    console.log(`⚡ Round ${round} | Trying API ${i + 1}: ${url}`);
 
-                    let res = await axios.get(url, { timeout: 15000 });
+                    let res = await axios.get(url, { timeout: 10000 });
                     if (!res.data) continue;
 
-                    let songUrl = res.data.url || res.data.download || res.data.result || null;
+                    let songUrl = res.data.url || res.data.download || res.data.result || res.data.link || res.data.song || res.data.audio || null;
                     if (!songUrl) continue;
 
                     await sock.sendMessage(m.chat, {
@@ -51,12 +56,17 @@ module.exports = {
                         fileName: `${text}.mp3`
                     }, { quoted: m });
 
-                    await sock.sendMessage(m.chat, { text: `✅ Found & sent from API ${i + 1}` }, { quoted: m });
-                    success = true;
+                    await sock.sendMessage(m.chat, { text: `✅ Found song on Round ${round}, API ${i + 1}` }, { quoted: m });
+                    found = true;
                     break;
                 } catch (e) {
-                    console.log(`❌ API ${i + 1} failed: ${e.message}`);
+                    console.log(`❌ API ${i + 1} failed in Round ${round}: ${e.message}`);
                 }
+            }
+
+            if (!found) {
+                await sock.sendMessage(m.chat, { text: `⚠️ Still searching... Round ${round} failed, retrying...` }, { quoted: m });
+                await delay(3000); // wait 3s before next loop
             }
         }
     }
