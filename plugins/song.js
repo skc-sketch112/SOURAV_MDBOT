@@ -5,16 +5,19 @@ const path = require("path");
 module.exports = {
   name: "song",
   alias: ["music", "play"],
-  desc: "Download full songs with 15 fallback APIs",
+  desc: "Download full songs with 15 fallback APIs (auto retry)",
   category: "media",
   usage: ".song <song name>",
   async execute(sock, m, args) {
     try {
-      if (!args[0]) return m.reply("❌ Please provide a song name!");
-      let query = args.join(" ");
-      m.reply(`🎶 Searching full song for: *${query}* ...`);
+      if (!args[0]) {
+        return await sock.sendMessage(m.chat, { text: "❌ Please provide a song name!" }, { quoted: m });
+      }
 
-      // === 15 APIs List ===
+      const query = args.join(" ");
+      await sock.sendMessage(m.chat, { text: `🎶 Searching for *${query}*...` }, { quoted: m });
+
+      // === 15 APIs ===
       const apis = [
         { url: `https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}&limit=1`, path: r => r.data?.data?.results?.[0]?.downloadUrl?.[4]?.link },
         { url: `https://wynk-api.vercel.app/search?query=${encodeURIComponent(query)}`, path: r => r.data?.song?.downloadUrl },
@@ -33,56 +36,77 @@ module.exports = {
         { url: `https://audiomp3api.vercel.app/search?song=${encodeURIComponent(query)}`, path: r => r.data?.result?.[0]?.download }
       ];
 
-      let url = null, apiIndex = 0;
+      let success = false;
 
-      // === 🔁 Loop through APIs until success ===
-      for (const api of apis) {
+      for (let i = 0; i < apis.length; i++) {
+        const api = apis[i];
+        const apiNum = i + 1;
+
+        // 🔄 Notify which API is being tried
+        await sock.sendMessage(m.chat, { text: `🔄 Trying API #${apiNum} ...` }, { quoted: m });
+
         try {
           const res = await axios.get(api.url, { timeout: 15000 });
-          url = api.path(res);
-          if (url) {
-            apiIndex++;
-            break;
+          const url = api.path(res);
+
+          if (!url) {
+            await sock.sendMessage(m.chat, { text: `⚠️ API #${apiNum} returned no result.` }, { quoted: m });
+            continue;
           }
+
+          const filePath = path.join(__dirname, `temp_${Date.now()}.mp3`);
+          const writer = fs.createWriteStream(filePath);
+
+          const response = await axios({
+            url,
+            method: "GET",
+            responseType: "stream",
+            timeout: 60000,
+            validateStatus: status => status < 400
+          });
+
+          response.data.pipe(writer);
+
+          await new Promise((resolve, reject) => {
+            writer.on("finish", resolve);
+            writer.on("error", reject);
+          });
+
+          const stats = fs.statSync(filePath);
+          if (stats.size < 50000) {
+            fs.unlinkSync(filePath);
+            await sock.sendMessage(m.chat, { text: `❌ API #${apiNum} gave broken file. Retrying...` }, { quoted: m });
+            continue;
+          }
+
+          await sock.sendMessage(
+            m.chat,
+            {
+              audio: fs.readFileSync(filePath),
+              mimetype: "audio/mpeg",
+              fileName: `${query}.mp3`
+            },
+            { quoted: m }
+          );
+
+          fs.unlinkSync(filePath);
+          await sock.sendMessage(m.chat, { text: `✅ Song delivered via API #${apiNum}` }, { quoted: m });
+          success = true;
+          break;
+
         } catch (err) {
-          apiIndex++;
-          continue; // try next API
+          await sock.sendMessage(m.chat, { text: `❌ API #${apiNum} failed. Trying next...` }, { quoted: m });
+          continue;
         }
       }
 
-      if (!url) return m.reply("❌ Song not found on any API (all 15 failed).");
-
-      // Download + Send
-      const filePath = path.join(__dirname, `temp_${Date.now()}.mp3`);
-      const writer = fs.createWriteStream(filePath);
-
-      const response = await axios({
-        url,
-        method: "GET",
-        responseType: "stream",
-        timeout: 60000
-      });
-
-      response.data.pipe(writer);
-
-      writer.on("finish", async () => {
-        await sock.sendMessage(m.chat, {
-          audio: fs.readFileSync(filePath),
-          mimetype: "audio/mpeg",
-          fileName: `${query}.mp3`
-        }, { quoted: m });
-
-        fs.unlinkSync(filePath);
-        m.reply(`✅ Song delivered via API #${apiIndex}`);
-      });
-
-      writer.on("error", () => {
-        m.reply("❌ Error writing file.");
-      });
+      if (!success) {
+        await sock.sendMessage(m.chat, { text: "❌ All 15 APIs failed. Song not found." }, { quoted: m });
+      }
 
     } catch (err) {
       console.error("SONG ERROR:", err.message);
-      m.reply("❌ Failed to fetch song.");
+      await sock.sendMessage(m.chat, { text: "❌ Fatal error while fetching song." }, { quoted: m });
     }
   }
 };
