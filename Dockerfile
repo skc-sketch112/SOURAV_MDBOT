@@ -1,52 +1,30 @@
-# -------------------------
-# Stage 1: Build dependencies
-# -------------------------
-FROM node:20-slim AS builder
+# Use Node 20 LTS
+FROM node:20-bullseye
 
-WORKDIR /app
+# Set working directory
+WORKDIR /usr/src/app
 
-# Install system deps required for building some npm packages
+# Install system dependencies for building native modules and ffmpeg
 RUN apt-get update && apt-get install -y \
+    build-essential \
     python3 \
-    make \
-    g++ \
     git \
-  && rm -rf /var/lib/apt/lists/*
+    ffmpeg \
+    pkg-config \
+    libvips-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy package files
+# Copy package.json and package-lock.json first
 COPY package*.json ./
 
-# Install all dependencies (including dev) in builder
-RUN npm install
+# Install npm dependencies with legacy-peer-deps to avoid conflicts
+RUN npm install --legacy-peer-deps
 
-# Copy full source
+# Copy all bot files
 COPY . .
 
-# -------------------------
-# Stage 2: Production runtime
-# -------------------------
-FROM node:20-slim AS runner
+# Expose keep-alive port
+EXPOSE 3000
 
-WORKDIR /app
-
-# Install runtime dependencies only (ffmpeg + git if bot uses it)
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    git \
-  && rm -rf /var/lib/apt/lists/*
-
-# Copy only production node_modules from builder
-COPY --from=builder /app/node_modules ./node_modules
-
-# Copy source code (but ignore dev junk via .dockerignore)
-COPY --from=builder /app ./
-
-# Environment (can be overridden at runtime)
-ENV NODE_ENV=production
-
-# Healthcheck (Render will know if container is alive)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-  CMD node -e "require('net').connect(3000).on('error', () => process.exit(1))"
-
-# Run bot
-CMD ["npm", "run", "dev"]
+# Start bot
+CMD ["node", "index.js"]
