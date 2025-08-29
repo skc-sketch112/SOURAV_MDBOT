@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { downloadContentFromMessage } = require("@adiwajshing/baileys");
 
 const PHOTO_DIR = path.join(__dirname, "vv_photos");
 if (!fs.existsSync(PHOTO_DIR)) fs.mkdirSync(PHOTO_DIR);
@@ -11,17 +12,26 @@ module.exports = {
 
   async onMessage(sock, m) {
     try {
-      // Support normal images and view-once images
-      let imageMessage = m.message?.imageMessage || m.message?.viewOnceMessage?.message?.imageMessage;
+      // Detect normal and view-once images
+      let imageMessage =
+        m.message?.imageMessage ||
+        m.message?.viewOnceMessage?.message?.imageMessage;
+
       if (!imageMessage) return; // Not an image
 
-      // Download media
-      const buffer = await sock.downloadMediaMessage(m);
+      // Download the image
+      const stream = await downloadContentFromMessage(imageMessage, "image");
+      let buffer = Buffer.from([]);
+      for await (const chunk of stream) {
+        buffer = Buffer.concat([buffer, chunk]);
+      }
+
+      // Save to file
       const fileName = path.join(PHOTO_DIR, `photo-${Date.now()}.jpg`);
       fs.writeFileSync(fileName, buffer);
-      console.log("Saved incoming photo:", fileName);
+      console.log("✅ Saved incoming photo:", fileName);
     } catch (err) {
-      console.error("Failed to save incoming photo:", err);
+      console.error("❌ Failed to save incoming photo:", err);
     }
   },
 
@@ -33,7 +43,6 @@ module.exports = {
         return sock.sendMessage(chat, { text: "❌ No saved photos yet!" }, { quoted: m });
       }
 
-      // Send the last saved photo
       const lastPhoto = files[files.length - 1];
       const buffer = fs.readFileSync(path.join(PHOTO_DIR, lastPhoto));
 
@@ -42,7 +51,6 @@ module.exports = {
         caption: "✅ Here’s your secret photo!\n\nPowered by SOURAV_MD",
         fileName: lastPhoto
       }, { quoted: m });
-
     } catch (err) {
       console.error("VV Execute Error:", err);
       await sock.sendMessage(chat, {
