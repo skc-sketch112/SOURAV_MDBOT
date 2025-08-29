@@ -1,9 +1,9 @@
 {
   "name": "sourav_md",
   "version": "3.0.0",
-  "description": "🔥 SOURAV_MD - Ultra Powerful WhatsApp Bot using Baileys with music, stickers, AI, scrapers & automation 🔥",
+  "description": "🔥 SOURAV_MD - Ultra Powerful WhatsApp Bot using Baileys v5 with music, stickers, AI, scrapers & automation 🔥",
   "main": "index.js",
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "genius-lyrics-api": "^3.2.0",
-    "@whiskeysockets/baileys": "6.7.18",
+    "@whiskeysockets/baileys": "^5.0.12",
     "@bochilteam/scraper": "^4.2.4",
     "whatsapp-web.js": "^1.32.0",
     "genius-lyrics": "^4.4.7",
@@ -47,7 +47,7 @@
     "human-readable": "0.2.1",
     "node-cache": "5.1.2",
     "mathjs": "11.11.0",
-    "sharp": "0.32.6", 
+    "sharp": "0.32.6",
     "path": "0.12.7",
     "proxy-agent": "^6.4.0"
   },
