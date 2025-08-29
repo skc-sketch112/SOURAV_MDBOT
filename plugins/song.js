@@ -1,73 +1,74 @@
 const axios = require("axios");
 
-// helper delay function
-const delay = ms => new Promise(res => setTimeout(res, ms));
-
 module.exports = {
     name: "song",
-    alias: ["play", "music"],
-    desc: "Download full song (loop through APIs until success)",
-    category: "media",
-    usage: ".song <song name>",
-    react: "🎵",
+    command: ["song", "music", "play"],
+    execute: async (sock, m, args) => {
+        if (!args.length) {
+            return await sock.sendMessage(m.key.remoteJid, { text: "❌ Please provide a song name!\nExample: .song despacito" }, { quoted: m });
+        }
 
-    start: async (sock, m, { text }) => {
-        if (!text) return sock.sendMessage(m.chat, { text: "❌ Please provide a song name!" }, { quoted: m });
+        const query = args.join(" ");
+        const chatId = m.key.remoteJid;
 
+        await sock.sendMessage(chatId, { text: `🎵 Searching for *${query}*...` }, { quoted: m });
+
+        // ✅ 15+ APIs (manually added)
         const apis = [
-            q => `https://api.videodlserver.com/song?query=${encodeURIComponent(q)}`,
-            q => `https://api.songsearch.ai/play?name=${encodeURIComponent(q)}`,
-            q => `https://musicapi-one.vercel.app/api/song/${encodeURIComponent(q)}`,
-            q => `https://api.lavalink.dev/song?track=${encodeURIComponent(q)}`,
-            q => `https://fastdl-api.vercel.app/music?query=${encodeURIComponent(q)}`,
-            q => `https://songapi-xi.vercel.app/api/play?search=${encodeURIComponent(q)}`,
-            q => `https://hikarinoapi.vercel.app/song?name=${encodeURIComponent(q)}`,
-            q => `https://audiograbber.vercel.app/api/download/${encodeURIComponent(q)}`,
-            q => `https://musicscraper.vercel.app/api/song?search=${encodeURIComponent(q)}`,
-            q => `https://dl-song.vercel.app/download?title=${encodeURIComponent(q)}`,
-            q => `https://muzicapi.vercel.app/song/${encodeURIComponent(q)}`,
-            q => `https://saavnapi.vercel.app/search/song?query=${encodeURIComponent(q)}`,
-            q => `https://spotifydlapi.vercel.app/song?title=${encodeURIComponent(q)}`,
-            q => `https://musicfetch.vercel.app/api/play?query=${encodeURIComponent(q)}`,
-            q => `https://ytmusicapi.vercel.app/song?search=${encodeURIComponent(q)}`
+            q => `https://vihangayt.me/download/ytmp3?q=${encodeURIComponent(q)}`,
+            q => `https://api.dapuhy.xyz/api/socialmedia/ytplaymp3?query=${encodeURIComponent(q)}&apikey=freeapi`,
+            q => `https://api.ryzendesu.vip/api/downloader/ytplaymp3?query=${encodeURIComponent(q)}&apikey=freeapi`,
+            q => `https://api.zahwazein.xyz/downloader/ytplaymp3?query=${encodeURIComponent(q)}&apikey=freeapi`,
+            q => `https://api.akuari.my.id/downloader/ytplay?query=${encodeURIComponent(q)}`,
+            q => `https://api.itsrose.life/tools/ytmp3?url=${encodeURIComponent(q)}&apikey=freeapi`,
+            q => `https://api.caliph.biz.id/api/ytplaymp3?query=${encodeURIComponent(q)}&apikey=freeapi`,
+            q => `https://api.zeeoneofc.my.id/api/downloader/ytplay?text=${encodeURIComponent(q)}&apikey=freeapi`,
+            q => `https://api.botcahx.live/api/dowloader/ytplay?text=${encodeURIComponent(q)}&apikey=freeapi`,
+            q => `https://api.lolhuman.xyz/api/ytplay?apikey=freeapi&query=${encodeURIComponent(q)}`,
+            q => `https://api.erdwpe.xyz/api/download/ytplay?query=${encodeURIComponent(q)}&apikey=freeapi`,
+            q => `https://api.xcodeteam.xyz/api/ytplay?query=${encodeURIComponent(q)}&apikey=freeapi`,
+            q => `https://api.siputzx.my.id/api/ytplay?search=${encodeURIComponent(q)}&apikey=freeapi`,
+            q => `https://api.alphabot.biz.id/api/ytplaymp3?query=${encodeURIComponent(q)}&apikey=freeapi`,
+            q => `https://widipe.com/download/ytplay?text=${encodeURIComponent(q)}&apikey=freeapi`,
+            q => `https://api.nyxs.pw/ytplaymp3?text=${encodeURIComponent(q)}&apikey=freeapi`,
         ];
 
-        sock.sendMessage(m.chat, { text: `🔎 Searching "${text}"... I will keep trying until I find it ✅` }, { quoted: m });
+        let success = false;
 
-        let found = false;
-        let round = 0;
+        // 🔄 Loop all APIs until success
+        for (let i = 0; i < apis.length; i++) {
+            try {
+                console.log(`⚡ Trying API ${i + 1} for query: ${query}`);
+                let { data } = await axios.get(apis[i](query));
 
-        while (!found) {
-            round++;
-            for (let i = 0; i < apis.length; i++) {
-                try {
-                    let url = apis[i](text);
-                    console.log(`⚡ Round ${round} | Trying API ${i + 1}: ${url}`);
+                // Normalize possible audio link fields
+                let audioUrl =
+                    data?.result?.url ||
+                    data?.result?.download_url ||
+                    data?.result?.audio ||
+                    data?.result?.link ||
+                    data?.result?.mp3 ||
+                    data?.result?.result ||
+                    null;
 
-                    let res = await axios.get(url, { timeout: 10000 });
-                    if (!res.data) continue;
-
-                    let songUrl = res.data.url || res.data.download || res.data.result || res.data.link || res.data.song || res.data.audio || null;
-                    if (!songUrl) continue;
-
-                    await sock.sendMessage(m.chat, {
-                        audio: { url: songUrl },
-                        mimetype: "audio/mpeg",
-                        fileName: `${text}.mp3`
+                if (audioUrl) {
+                    await sock.sendMessage(chatId, {
+                        audio: { url: audioUrl },
+                        mimetype: "audio/mp4"
                     }, { quoted: m });
 
-                    await sock.sendMessage(m.chat, { text: `✅ Found song on Round ${round}, API ${i + 1}` }, { quoted: m });
-                    found = true;
-                    break;
-                } catch (e) {
-                    console.log(`❌ API ${i + 1} failed in Round ${round}: ${e.message}`);
+                    await sock.sendMessage(chatId, { text: `✅ Found song using API ${i + 1}` }, { quoted: m });
+                    success = true;
+                    break; // stop after success
                 }
+            } catch (e) {
+                console.error(`❌ API ${i + 1} failed:`, e.message);
             }
+        }
 
-            if (!found) {
-                await sock.sendMessage(m.chat, { text: `⚠️ Still searching... Round ${round} failed, retrying...` }, { quoted: m });
-                await delay(3000); // wait 3s before next loop
-            }
+        // ❌ If all APIs failed
+        if (!success) {
+            await sock.sendMessage(chatId, { text: "⚠️ Sorry, could not fetch song. All APIs failed." }, { quoted: m });
         }
     }
 };
