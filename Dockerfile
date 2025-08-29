@@ -19,16 +19,13 @@ RUN apt-get update && apt-get install -y \
     librsvg2-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package.json and package-lock.json if exists
+# Copy package.json and package-lock.json (if exists)
 COPY package*.json ./
 
-# Remove lock file & clean npm cache
-RUN rm -f package-lock.json && npm cache clean --force
+# Install dependencies (keep legacy-peer-deps for compatibility)
+RUN npm install --legacy-peer-deps
 
-# Install dependencies (including express)
-RUN npm install --legacy-peer-deps 2>&1 | tee npm-install.log
-
-# Copy all project files
+# Copy all source files AFTER dependencies for better caching
 COPY . .
 
 # Expose port for Express
