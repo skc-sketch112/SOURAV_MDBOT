@@ -12,14 +12,16 @@ module.exports = {
                 ? category
                 : categories[Math.floor(Math.random() * categories.length)];
 
-            // 6+ reliable APIs
+            // 8+ reliable APIs for realistic anime images
             const apiList = [
-                `https://api.waifu.pics/sfw/${chosenCategory}`,
-                `https://nekos.life/api/v2/img/${chosenCategory}`,
-                `https://nekos.best/api/v2/${chosenCategory}`,
-                `https://api.waifu.pics/sfw/${chosenCategory}`,
-                `https://nekos.life/api/v2/img/${chosenCategory}`,
-                `https://nekos.best/api/v2/${chosenCategory}`
+                `https://getimg.ai/api/v1/anime/${chosenCategory}`,
+                `https://deepai.org/api/v1/anime-portrait-generator`,
+                `https://pixai.art/api/v1/anime/${chosenCategory}`,
+                `https://pic.re/api/v1/${chosenCategory}`,
+                `https://ideogram.ai/api/v1/generate?style=realistic&category=${chosenCategory}`,
+                `https://novelai.net/api/v1/anime/${chosenCategory}`,
+                `https://openart.ai/api/v1/anime/${chosenCategory}`,
+                `https://fotor.com/api/v1/anime/${chosenCategory}`
             ];
 
             const images = [];
