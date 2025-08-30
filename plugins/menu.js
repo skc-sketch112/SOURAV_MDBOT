@@ -16,10 +16,6 @@ module.exports = {
       const pluginFiles = fs.readdirSync(pluginsPath).filter(file => file.endsWith(".js"));
 
       let commands = [];
-      let totalCommands = 0; // 👈 fixed at 0 (for display)
-
-      // ✅ Background: Real command counter
-      let realCommandCount = 0;
 
       for (const file of pluginFiles) {
         try {
@@ -28,19 +24,20 @@ module.exports = {
             plugin.forEach(cmd => {
               if (cmd.name) {
                 commands.push(cmd);
-                realCommandCount++; // count live
               }
             });
           } else {
             if (plugin.name) {
               commands.push(plugin);
-              realCommandCount++; // count live
             }
           }
         } catch (e) {
           console.error(`❌ Failed to load plugin ${file}:`, e.message);
         }
       }
+
+      // ✅ Total command count
+      const totalCommands = commands.length;
 
       const prefix = ".";
       const ownerName = "SOURAV_MD";
@@ -70,7 +67,7 @@ module.exports = {
       menuText += `◆ TIME: ${new Date().toLocaleTimeString("en-GB")}\n`;
       menuText += `◆ DATE: ${new Date().toDateString()}\n`;
       menuText += `◆ UPTIME: ${uptimeStr}\n`;
-      menuText += `◆ COMMANDS: ${totalCommands} (real: ${realCommandCount})\n`; // 👈 shows 0 + real in bracket
+      menuText += `◆ COMMANDS: ${totalCommands}\n`; // ✅ fixed
       menuText += `◆ PLATFORM: ${os.platform().toUpperCase()}\n`;
       menuText += `◆ RUNTIME: Node.js ${process.version}\n`;
       menuText += `◆ CPU: ${os.cpus()[0].model}\n`;
@@ -88,7 +85,6 @@ module.exports = {
       }
 
       for (const cat in categories) {
-        // Gradient title
         const catTitle = gradientText(` ${cat.toUpperCase()} `);
         menuText += `╭━━━❮${catTitle}❯━━━╮\n`;
         categories[cat].forEach((cmd, i) => {
@@ -101,16 +97,15 @@ module.exports = {
         menuText += `╰━━━━━━━━━━━━━━━╯\n\n`;
       }
 
-      // Realistic Logo
-      const logoUrl = "https://files.catbox.moe/qthc8y.png"; // SOURAV_MD realistic image
+      // Logo
+      const logoUrl = "https://files.catbox.moe/qthc8y.png"; 
 
-      // Send logo first
       await sock.sendMessage(msg.key.remoteJid, {
         image: { url: logoUrl },
         caption: "✨ *WELCOME TO SOURAV_MD BOT* ✨"
       }, { quoted: msg });
 
-      // Typing effect simulation
+      // Split long menu
       const chunks = menuText.match(/.{1,800}/gs); 
       for (const chunk of chunks) {
         await new Promise(resolve => setTimeout(resolve, 800)); 
