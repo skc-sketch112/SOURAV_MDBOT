@@ -1,6 +1,6 @@
-// plugins/menu.js
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 
 module.exports = {
   name: "menu",
@@ -11,27 +11,30 @@ module.exports = {
   async execute(sock, msg, args) {
     try {
       const pluginsPath = path.join(__dirname);
+
+      // 🔥 Auto Load All Plugins (.js files only)
       const pluginFiles = fs.readdirSync(pluginsPath).filter(file => file.endsWith(".js"));
 
       let commands = [];
-      let totalCommands = 0;
+      let totalCommands = 0; // 👈 fixed at 0 (for display)
 
-      // Load Plugins
+      // ✅ Background: Real command counter
+      let realCommandCount = 0;
+
       for (const file of pluginFiles) {
         try {
           const plugin = require(path.join(pluginsPath, file));
-
           if (Array.isArray(plugin)) {
             plugin.forEach(cmd => {
               if (cmd.name) {
                 commands.push(cmd);
-                totalCommands++;
+                realCommandCount++; // count live
               }
             });
           } else {
             if (plugin.name) {
               commands.push(plugin);
-              totalCommands++;
+              realCommandCount++; // count live
             }
           }
         } catch (e) {
@@ -41,8 +44,42 @@ module.exports = {
 
       const prefix = ".";
       const ownerName = "SOURAV_MD";
+      const version = "4";
+      const plan = "FREE";
+      const user = "SOURAV";
+      const uptime = process.uptime();
+      const uptimeStr = new Date(uptime * 1000).toISOString().substr(11, 8);
 
-      // Auto Categorize
+      const ramUsed = (os.totalmem() - os.freemem()) / (1024 * 1024);
+      const ramTotal = os.totalmem() / (1024 * 1024);
+      const ramPercent = ((ramUsed / ramTotal) * 100).toFixed(1);
+
+      // 🌈 Gradient Style Text Function
+      function gradientText(text) {
+        const colors = ["🟥","🟧","🟨","🟩","🟦","🟪"]; 
+        return text.split("").map((ch,i)=> colors[i % colors.length] + ch).join("") + "⬜";
+      }
+
+      // Header with gradient
+      let menuText = `${gradientText(" SOURAV_MD-V4 ")}\n\n`;
+      menuText += `◆ OWNER: ${ownerName}\n`;
+      menuText += `◆ USER: ${user}\n`;
+      menuText += `◆ PLAN: ${plan}\n`;
+      menuText += `◆ VERSION: ${version}\n`;
+      menuText += `◆ PREFIX: ${prefix}\n`;
+      menuText += `◆ TIME: ${new Date().toLocaleTimeString("en-GB")}\n`;
+      menuText += `◆ DATE: ${new Date().toDateString()}\n`;
+      menuText += `◆ UPTIME: ${uptimeStr}\n`;
+      menuText += `◆ COMMANDS: ${totalCommands} (real: ${realCommandCount})\n`; // 👈 shows 0 + real in bracket
+      menuText += `◆ PLATFORM: ${os.platform().toUpperCase()}\n`;
+      menuText += `◆ RUNTIME: Node.js ${process.version}\n`;
+      menuText += `◆ CPU: ${os.cpus()[0].model}\n`;
+      menuText += `◆ RAM: ${Math.round(ramUsed)}MB / ${Math.round(ramTotal)}MB (${ramPercent}%)\n`;
+      menuText += `◆ MODE: Public\n`;
+      menuText += `◆ MOOD: ⚡\n\n`;
+
+      // Dynamic Commands
+      menuText += `*📂 COMMANDS BY CATEGORY:*\n\n`;
       const categories = {};
       for (const cmd of commands) {
         const cat = cmd.category || "Others";
@@ -50,62 +87,10 @@ module.exports = {
         categories[cat].push(cmd);
       }
 
-      // Header
-      let menuText = `╭━❮ *🤖 SOURAV_MD BOT MENU* ❯━╮\n`;
-      menuText += `┣👑 Owner: ${ownerName}\n`;
-      menuText += `┣📦 Plugins: ${pluginFiles.length}\n`;
-      menuText += `┣⚡ Total Commands: ${totalCommands}\n`;
-      menuText += `┣⚡ Prefix: [ ${prefix} ]\n`;
-      menuText += `┣📌 Mode: Public\n`;
-      menuText += `┣🕒 Time: ${new Date().toLocaleTimeString()}\n`;
-      menuText += `┣🌍 Date: ${new Date().toDateString()}\n`;
-      menuText += `╰━━━━━━━━━━━━━━━╯\n\n`;
-
-      // 🌟 Static Ecosystem Menu (তোমার লেখা অংশ)
-      menuText += `
-*🔥 SOURAV_MD - WhatsApp Bot Menu 🔥*
-
-📌 *General Commands*
-- .ping → Check bot alive
-- .menu → Show this menu
-- .help → Help section
-
-🎵 *Music & Video*
-- .play <song name> → Download from YouTube
-- .ytmp3 <link> → YouTube MP3
-- .ytmp4 <link> → YouTube MP4
-- .scdl <link> → SoundCloud Download
-
-😂 *Fun & Stickers*
-- .sticker → Make sticker from image/video
-- .attp <text> → Animated text sticker
-- .toimg → Convert sticker to image
-
-📚 *Utility*
-- .pdf <reply img> → Convert image to PDF
-- .tts <text> → Text to speech
-- .calc <math> → Solve math
-
-🌍 *Scrapers*
-- .igdl <link> → Instagram video
-- .fbdl <link> → Facebook video
-- .tiktok <link> → TikTok downloader
-- .googlesearch <query> → Google search
-
-🧠 *AI*
-- .ai <prompt> → Chat with AI
-- .img <prompt> → AI Image Generator
-
-⚙️ *System*
-- .restart → Restart bot
-- .uptime → Check uptime
-
-─────────────────────\n\n`;
-
-      // 🔥 Dynamic Auto Commands
-      menuText += `*📂 AUTO COMMANDS LOADED FROM PLUGINS:*\n\n`;
       for (const cat in categories) {
-        menuText += `╭━❮ *${cat.toUpperCase()}* ❯━╮\n`;
+        // Gradient title
+        const catTitle = gradientText(` ${cat.toUpperCase()} `);
+        menuText += `╭━━━❮${catTitle}❯━━━╮\n`;
         categories[cat].forEach((cmd, i) => {
           menuText += `┃ ${i + 1}. ${prefix}${cmd.name}`;
           if (cmd.alias && cmd.alias.length > 0) {
@@ -116,12 +101,21 @@ module.exports = {
         menuText += `╰━━━━━━━━━━━━━━━╯\n\n`;
       }
 
-      // Logo + Send
-      const logoUrl = "https://files.catbox.moe/1ehy5a.jpg";
+      // Realistic Logo
+      const logoUrl = "https://files.catbox.moe/qthc8y.png"; // SOURAV_MD realistic image
+
+      // Send logo first
       await sock.sendMessage(msg.key.remoteJid, {
         image: { url: logoUrl },
-        caption: menuText
+        caption: "✨ *WELCOME TO SOURAV_MD BOT* ✨"
       }, { quoted: msg });
+
+      // Typing effect simulation
+      const chunks = menuText.match(/.{1,800}/gs); 
+      for (const chunk of chunks) {
+        await new Promise(resolve => setTimeout(resolve, 800)); 
+        await sock.sendMessage(msg.key.remoteJid, { text: chunk }, { quoted: msg });
+      }
 
     } catch (err) {
       console.error("❌ Menu Error:", err);
