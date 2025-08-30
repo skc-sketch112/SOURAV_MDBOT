@@ -14,22 +14,15 @@ module.exports = {
 
       // 🔥 Auto Load All Plugins (.js files only)
       const pluginFiles = fs.readdirSync(pluginsPath).filter(file => file.endsWith(".js"));
-
       let commands = [];
 
       for (const file of pluginFiles) {
         try {
           const plugin = require(path.join(pluginsPath, file));
           if (Array.isArray(plugin)) {
-            plugin.forEach(cmd => {
-              if (cmd.name) {
-                commands.push(cmd);
-              }
-            });
+            plugin.forEach(cmd => { if (cmd.name) commands.push(cmd); });
           } else {
-            if (plugin.name) {
-              commands.push(plugin);
-            }
+            if (plugin.name) commands.push(plugin);
           }
         } catch (e) {
           console.error(`❌ Failed to load plugin ${file}:`, e.message);
@@ -57,7 +50,7 @@ module.exports = {
         return text.split("").map((ch,i)=> colors[i % colors.length] + ch).join("") + "⬜";
       }
 
-      // Header with gradient
+      // Header
       let menuText = `${gradientText(" SOURAV_MD-V4 ")}\n\n`;
       menuText += `◆ OWNER: ${ownerName}\n`;
       menuText += `◆ USER: ${user}\n`;
@@ -67,7 +60,7 @@ module.exports = {
       menuText += `◆ TIME: ${new Date().toLocaleTimeString("en-GB")}\n`;
       menuText += `◆ DATE: ${new Date().toDateString()}\n`;
       menuText += `◆ UPTIME: ${uptimeStr}\n`;
-      menuText += `◆ COMMANDS: ${totalCommands}\n`; // ✅ fixed
+      menuText += `◆ COMMANDS: ${totalCommands}\n`;
       menuText += `◆ PLATFORM: ${os.platform().toUpperCase()}\n`;
       menuText += `◆ RUNTIME: Node.js ${process.version}\n`;
       menuText += `◆ CPU: ${os.cpus()[0].model}\n`;
@@ -97,11 +90,9 @@ module.exports = {
         menuText += `╰━━━━━━━━━━━━━━━╯\n\n`;
       }
 
-      // Logo
-      const logoUrl = "https://files.catbox.moe/qthc8y.png"; 
-
+      // ✅ Always send your image URL
       await sock.sendMessage(msg.key.remoteJid, {
-        image: { url: logoUrl },
+        image: { url: "https://telegra.ph/file/4a1e6a81f3b4c31c6b2df.jpg" },
         caption: "✨ *WELCOME TO SOURAV_MD BOT* ✨"
       }, { quoted: msg });
 
