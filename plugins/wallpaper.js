@@ -1,71 +1,68 @@
-const axios = require("axios");
+const fetch = require("node-fetch");
 
 module.exports = {
   name: "wallpaper",
   alias: ["wp", "wall"],
-  desc: "Get unlimited realistic wallpapers (3 per command, multi-API, no API key)",
-  category: "fun",
+  desc: "Get unlimited realistic wallpapers",
+  category: "media",
   usage: ".wallpaper <query>",
-  async execute(sock, msg, args) {
-    const jid = msg.key.remoteJid;
-    const query = args.join(" ") || "realistic nature";
-
-    // 🌐 Free & keyless APIs
-    const apis = [
-      `https://loremflickr.com/1024/1024/${encodeURIComponent(query)}`,
-      `https://random.imagecdn.app/1024/1024?${encodeURIComponent(query)}`,
-      `https://source.unsplash.com/1024x1024/?${encodeURIComponent(query)}`,
-      `https://picsum.photos/1024/1024?random=${Math.floor(Math.random() * 1000)}`,
-      `https://dummyimage.com/1024x1024/000/fff&text=${encodeURIComponent(query)}`,
-      `https://api.waifu.pics/sfw/waifu`, // anime styled, fallback
-      `https://nekobot.xyz/api/image?type=wallpaper`,
-      `https://api.dicebear.com/7.x/shapes/png?seed=${encodeURIComponent(query)}`,
-      `https://placekitten.com/1024/1024`, // kitten wallpaper fallback
-      `https://placebear.com/1024/1024` // bear wallpaper fallback
-    ];
-
-    let success = false;
-
-    for (let api of apis) {
-      try {
-        let urls = [];
-
-        if (api.includes("nekobot")) {
-          const res = await axios.get(api);
-          urls = [res.data.message];
-        } else if (api.includes("waifu")) {
-          const res = await axios.get(api);
-          urls = [res.data.url];
-        } else {
-          urls = [api]; // direct image API
-        }
-
-        if (urls.length > 0) {
-          success = true;
-          for (let i = 0; i < Math.min(3, urls.length); i++) {
-            await sock.sendMessage(
-              jid,
-              {
-                image: { url: urls[i] },
-                caption: `📸 Wallpaper Result ${i + 1} for *${query}*`
-              },
-              { quoted: msg }
-            );
-          }
-          break;
-        }
-      } catch (err) {
-        console.log(`❌ Failed from API: ${api} | ${err.message}`);
-        continue; // try next API
+  async execute(sock, m, args) {
+    try {
+      if (!args[0]) {
+        return sock.sendMessage(m.key.remoteJid, {
+          text: "❌ Please provide a search term!\nExample: `.wallpaper nature`"
+        }, { quoted: m });
       }
-    }
 
-    if (!success) {
-      await sock.sendMessage(
-        jid,
-        { text: "⚠️ All wallpaper APIs failed. Try again later." },
-        { quoted: msg }
-      );
+      const query = args.join(" ");
+      const apis = [
+        `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&orientation=landscape&per_page=10`,
+        `https://pixabay.com/api/?key=51874106-2a96202d9815d07ac95dba697&q=${encodeURIComponent(query)}&image_type=photo&orientation=horizontal`,
+        `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&orientation=landscape&per_page=10&client_id=Uebb0QGhkVela_0V0ZidmqYXDqAEHRYpV2UnemVHgLY`
+      ];
+
+      let results = [];
+
+      for (let url of apis) {
+        try {
+          let res;
+          if (url.includes("pexels")) {
+            res = await fetch(url, { headers: { Authorization: "2OHAFWxDxIbbzzfpsIx68eXOAFQ9MtWWZcrQBUoslhwRTlv3tOU6tFo5" } });
+            let data = await res.json();
+            data.photos.forEach(p => results.push(p.src.original));
+          } else {
+            res = await fetch(url);
+            let data = await res.json();
+            if (data.hits) {
+              data.hits.forEach(p => results.push(p.largeImageURL));
+            } else if (data.results) {
+              data.results.forEach(p => results.push(p.urls.full));
+            }
+          }
+        } catch (e) {
+          console.error("API failed:", url, e.message);
+        }
+      }
+
+      if (results.length === 0) {
+        return sock.sendMessage(m.key.remoteJid, {
+          text: "⚠️ No wallpapers found. Try another keyword!"
+        }, { quoted: m });
+      }
+
+      // send only first 3 images to avoid spam
+      let selected = results.slice(0, 3);
+
+      for (let i = 0; i < selected.length; i++) {
+        await sock.sendMessage(m.key.remoteJid, {
+          image: { url: selected[i] },
+          caption: `📸 Wallpaper Result ${i + 1} for *${query}*`
+        }, { quoted: m });
+      }
+
+    } catch (err) {
+      console.error("Wallpaper error:", err);
+      await sock.sendMessage(m.key.remoteJid, { text: "❌ Error fetching wallpapers." }, { quoted: m });
     }
   }
 };
