@@ -90,13 +90,7 @@ module.exports = {
         menuText += `╰━━━━━━━━━━━━━━━╯\n\n`;
       }
 
-      // ✅ Always send your image URL
-      await sock.sendMessage(msg.key.remoteJid, {
-        image: { url: "https://telegra.ph/file/4a1e6a81f3b4c31c6b2df.jpg" },
-        caption: "✨ *WELCOME TO SOURAV_MD BOT* ✨"
-      }, { quoted: msg });
-
-      // Split long menu
+      // 📜 Split long menu into chunks
       const chunks = menuText.match(/.{1,800}/gs); 
       for (const chunk of chunks) {
         await new Promise(resolve => setTimeout(resolve, 800)); 
