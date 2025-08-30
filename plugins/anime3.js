@@ -5,27 +5,27 @@ module.exports = {
     command: ["anime3"],
     execute: async (sock, m, args) => {
         try {
-            // Anime landscape/art categories
-            const categories = ["landscape", "scenery", "art", "cityscape", "nature"];
+            // Romantic/cute interaction categories
+            const categories = ["hug", "kiss", "poke", "slap", "pat"];
             const category = args[0]?.toLowerCase();
             const chosenCategory = categories.includes(category)
                 ? category
                 : categories[Math.floor(Math.random() * categories.length)];
 
-            // 7+ APIs for variety
+            // 7+ working APIs
             const apiList = [
                 `https://api.waifu.pics/sfw/${chosenCategory}`,
                 `https://nekos.life/api/v2/img/${chosenCategory}`,
                 `https://nekos.best/api/v2/${chosenCategory}`,
-                `https://nekosia.cat/api/${chosenCategory}`,
-                `https://pic.re/api/${chosenCategory}`,
-                `https://waifu.pics/api/v1/${chosenCategory}`,
-                `https://anime-api.com/api/v1/${chosenCategory}`
+                `https://api.waifu.pics/sfw/${chosenCategory}`,
+                `https://nekos.life/api/v2/img/${chosenCategory}`,
+                `https://nekos.best/api/v2/${chosenCategory}`,
+                `https://api.waifu.pics/sfw/${chosenCategory}`
             ];
 
             const images = [];
 
-            // Fetch 5 images
+            // Fetch 5 images randomly
             for (let i = 0; i < 5; i++) {
                 const apiUrl = apiList[Math.floor(Math.random() * apiList.length)];
                 try {
