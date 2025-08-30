@@ -1,162 +1,131 @@
-import ytdl from "ytdl-core";
-import yts from "yt-search";
-import fs from "fs";
-import { pipeline } from "stream";
-import { promisify } from "util";
-import os from "os";
-import axios from "axios";
+const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
+const ytdl = require("ytdl-core"); // fallback for YouTube audio
 
-const streamPipeline = promisify(pipeline);
-
-// ------------------- 10+ API Fallbacks -------------------
-const APIs = [
-  // 1. yt-search
-  async (query) => {
-    const res = await yts(`${query} Song`);
-    if (res.videos.length) return res.videos[0];
-    return null;
-  },
-
-  // 2. YouTube Data API v3
-  async (query) => {
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&key=YOUR_YOUTUBE_API_KEY&type=video&maxResults=1`;
-    try {
-      const { data } = await axios.get(searchUrl);
-      if (data.items?.length) {
-        const video = data.items[0];
-        return { title: video.snippet.title, url: `https://www.youtube.com/watch?v=${video.id.videoId}` };
-      }
-    } catch (e) {}
-    return null;
-  },
-
-  // 3. play-dl search
-  async (query) => {
-    try {
-      const playdl = await import("play-dl");
-      const searchResults = await playdl.search(query, { limit: 1 });
-      if (searchResults.length) return { title: searchResults[0].title, url: searchResults[0].url };
-    } catch (e) {}
-    return null;
-  },
-
-  // 4. SoundCloud public search
-  async (query) => {
-    try {
-      const scdl = await import("soundcloud-downloader");
-      const result = await scdl.search(query, "track");
-      if (result.collection?.length) return { title: result.collection[0].title, url: result.collection[0].permalink_url };
-    } catch (e) {}
-    return null;
-  },
-
-  // 5. Spotify fallback via Play-dl
-  async (query) => {
-    try {
-      const playdl = await import("play-dl");
-      if (await playdl.spotify_validate(query) === "track") {
-        const track = await playdl.spotify(query);
-        return { title: track.name, url: track.url };
-      }
-    } catch (e) {}
-    return null;
-  },
-
-  // 6. Shazam
-  async (query) => {
-    try {
-      const shazam = await import("node-shazam");
-      const search = new shazam.default();
-      const result = await search.search(query);
-      if (result?.tracks?.hits?.length) return { title: result.tracks.hits[0].track.title, url: result.tracks.hits[0].track.url };
-    } catch (e) {}
-    return null;
-  },
-
-  // 7. Alternative YouTube search via axios
-  async (query) => {
-    try {
-      const res = await axios.get(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
-      const match = res.data.match(/\/watch\?v=[\w-]{11}/);
-      if (match) return { title: query, url: `https://www.youtube.com${match[0]}` };
-    } catch (e) {}
-    return null;
-  },
-
-  // 8. Another Play-dl fallback
-  async (query) => {
-    try {
-      const playdl = await import("play-dl");
-      const results = await playdl.search(query, { source: { youtube: "video" }, limit: 1 });
-      if (results.length) return { title: results[0].title, url: results[0].url };
-    } catch (e) {}
-    return null;
-  },
-
-  // 9. YouTube playlist fallback (first video)
-  async (query) => {
-    try {
-      const playdl = await import("play-dl");
-      const playlist = await playdl.playlist_info(query).catch(() => null);
-      if (playlist?.videos?.length) return { title: playlist.videos[0].title, url: playlist.videos[0].url };
-    } catch (e) {}
-    return null;
-  },
-
-  // 10. Any extra API you want to add
-  async (query) => null
-];
-
-// ------------------- SONG HANDLER -------------------
-const handler = {
+module.exports = {
   name: "song",
-  command: ["song", "music", "play"],
-  desc: "Download music from multiple sources reliably",
-
+  alias: ["music", "play"],
+  desc: "Download songs using 20+ APIs with fallback system",
+  category: "media",
+  usage: ".song despacito",
   async execute(sock, m, args) {
-    const chat = m.key.remoteJid;
+    if (!args[0]) {
+      return sock.sendMessage(m.key.remoteJid, {
+        text: "❌ Please provide a song name!\nExample: .song despacito",
+      });
+    }
+
     const query = args.join(" ");
-    if (!query) return await sock.sendMessage(chat, { text: "❌ Please provide a song name!\nExample: .song despacito" }, { quoted: m });
+    const apis = [
+      // 🎵 Example Free APIs (you can add/edit as needed)
+      `https://api-v1-music.vercel.app/spotify?query=${encodeURIComponent(query)}`,
+      `https://api.lyrics.ovh/suggest/${encodeURIComponent(query)}`,
+      `https://api.napster.com/v2.2/search?apikey=demo&query=${encodeURIComponent(query)}`,
+      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song`,
+      `https://api.deezer.com/search?q=${encodeURIComponent(query)}`,
+      `https://saavn.me/search/songs?query=${encodeURIComponent(query)}`,
+      `https://api.jiosaavn.dev/?query=${encodeURIComponent(query)}`,
+      `https://soundcloud-scraper.p.rapidapi.com/v1/search/tracks?query=${encodeURIComponent(query)}`,
+      `https://api.music.apple.com/v1/catalog/us/search?term=${encodeURIComponent(query)}`,
+      `https://api-v2.soundcloud.com/search?q=${encodeURIComponent(query)}&client_id=demo`,
+      `https://yt-search.vercel.app/search?query=${encodeURIComponent(query)}`,
+      `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}`,
+      `https://api-v1-music.vercel.app/yt?q=${encodeURIComponent(query)}`,
+      `https://youtube-mp3-download1.p.rapidapi.com/dl?id=${encodeURIComponent(query)}`,
+      `https://api.genius.com/search?q=${encodeURIComponent(query)}`,
+      `https://api-v1-music.vercel.app/soundcloud?q=${encodeURIComponent(query)}`,
+      `https://saavnapi.vercel.app/result/?q=${encodeURIComponent(query)}`,
+      `https://musicapi-chi.vercel.app/yt?q=${encodeURIComponent(query)}`,
+      `https://songapi-xi.vercel.app/find?query=${encodeURIComponent(query)}`,
+      `https://yt-api.eu.org/api/search?query=${encodeURIComponent(query)}`,
+    ];
 
-    await sock.sendMessage(chat, { text: "🔎 Searching your song across multiple sources..." }, { quoted: m });
+    let success = false;
+    let audioPath = null;
 
-    let video;
-    for (let api of APIs) {
+    // 🔁 Try each API until one works
+    for (const url of apis) {
       try {
-        video = await api(query);
-        if (video) break;
-      } catch (err) {
-        console.error("API fallback error:", err.message);
+        const res = await axios.get(url, { timeout: 10000 });
+        let songUrl = null;
+        let title = query;
+
+        // 🔎 Parse depending on API response
+        if (res.data) {
+          if (res.data.data && res.data.data[0]?.downloadUrl) {
+            songUrl = res.data.data[0].downloadUrl[0].link;
+            title = res.data.data[0].title;
+          } else if (res.data.tracks?.hits?.length > 0) {
+            songUrl = res.data.tracks.hits[0].track.previewUrl;
+            title = res.data.tracks.hits[0].track.name;
+          } else if (res.data.results?.length > 0) {
+            songUrl = res.data.results[0].previewUrl;
+            title = res.data.results[0].trackName;
+          } else if (res.data.data?.[0]?.preview) {
+            songUrl = res.data.data[0].preview;
+            title = res.data.data[0].title;
+          }
+        }
+
+        if (!songUrl) continue;
+
+        // 🎧 Download audio preview (30-60 sec max)
+        audioPath = path.join(__dirname, `${Date.now()}.mp3`);
+        const audio = await axios.get(songUrl, { responseType: "arraybuffer" });
+        fs.writeFileSync(audioPath, Buffer.from(audio.data, "binary"));
+
+        // ✅ Send audio
+        await sock.sendMessage(m.key.remoteJid, {
+          audio: { url: audioPath },
+          mimetype: "audio/mpeg",
+          fileName: `${title}.mp3`,
+        }, { quoted: m });
+
+        success = true;
+        break; // stop after success
+      } catch (e) {
+        console.log(`❌ Failed API: ${url}`);
+        continue; // try next API
       }
     }
 
-    if (!video) return await sock.sendMessage(chat, { text: "❌ Could not find your song!" }, { quoted: m });
+    // 🎵 YouTube fallback if all APIs fail
+    if (!success) {
+      try {
+        const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+        const ytRes = await axios.get(ytUrl);
+        const match = ytRes.data.match(/"videoId":"(.*?)"/);
+        if (match) {
+          const videoId = match[1];
+          const stream = ytdl(videoId, { filter: "audioonly", quality: "lowestaudio" });
+          audioPath = path.join(__dirname, `${Date.now()}.mp3`);
+          const writeStream = fs.createWriteStream(audioPath);
+          stream.pipe(writeStream);
+          await new Promise(resolve => writeStream.on("finish", resolve));
 
-    const { title, url } = video;
+          await sock.sendMessage(m.key.remoteJid, {
+            audio: { url: audioPath },
+            mimetype: "audio/mpeg",
+            fileName: `${query}.mp3`,
+          }, { quoted: m });
 
-    await sock.sendMessage(chat, { text: `🎧 Downloading: ${title}\n🔗 ${url}` }, { quoted: m });
+          success = true;
+        }
+      } catch (err) {
+        console.log("❌ YouTube fallback failed:", err.message);
+      }
+    }
 
-    try {
-      const audioStream = ytdl(url, { filter: "audioonly", quality: "highestaudio" });
-      const tmpDir = os.tmpdir();
-      const filePath = `${tmpDir}/${title.replace(/[\/\\?%*:|"<>]/g, "_")}.mp3`;
-
-      await streamPipeline(audioStream, fs.createWriteStream(filePath));
-
-      await sock.sendMessage(chat, {
-        audio: fs.createReadStream(filePath),
-        mimetype: "audio/mp4",
-        fileName: `${title}.mp3`
+    if (!success) {
+      await sock.sendMessage(m.key.remoteJid, {
+        text: "⚠️ Sorry, all APIs failed to fetch your song. Try again later."
       }, { quoted: m });
+    }
 
-      fs.unlink(filePath, (err) => {
-        if (err) console.error("Failed to delete temp audio file:", err);
-      });
-    } catch (err) {
-      console.error("Download/Send Error:", err.message);
-      await sock.sendMessage(chat, { text: "❌ Failed to download or send the song." }, { quoted: m });
+    // 🧹 Cleanup after send
+    if (audioPath) {
+      setTimeout(() => fs.unlinkSync(audioPath), 20000);
     }
   }
 };
-
-export default handler;
