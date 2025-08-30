@@ -1,32 +1,58 @@
 const fetch = require("node-fetch");
 
 module.exports = {
-    name: "anime",  // 👈 this MUST match your command
-    description: "Fetch random anime images",
-    run: async (sock, from, args) => {
+    name: "anime",
+    command: ["anime"],
+    execute: async (sock, m, args) => {
         try {
-            const categories = ["waifu", "neko", "shinobu", "megumin", "bully", "happy", "cry", "dance", "smile", "highfive"];
+            // List of catgirl-type anime categories
+            const categories = ["neko", "kitsune", "foxgirl", "blush"];
+            // Pick a category randomly or allow user argument
             const category = args[0]?.toLowerCase();
-            const chosen = categories.includes(category)
+            const chosenCategory = categories.includes(category)
                 ? category
                 : categories[Math.floor(Math.random() * categories.length)];
 
-            const url = `https://api.waifu.pics/sfw/${chosen}`;
-            const res = await fetch(url);
-            const data = await res.json();
+            // Multiple APIs for catgirl images
+            const apiList = [
+                `https://api.waifu.pics/sfw/${chosenCategory}`,
+                `https://nekos.life/api/v2/img/${chosenCategory}`,
+                `https://nekos.best/api/v2/${chosenCategory}`,
+                `https://nekosia.cat/api/${chosenCategory}`
+            ];
 
-            if (!data || !data.url) {
-                return await sock.sendMessage(from, { text: "❌ No anime found, try again." });
+            const images = [];
+
+            // Fetch 5 images
+            for (let i = 0; i < 5; i++) {
+                const apiUrl = apiList[Math.floor(Math.random() * apiList.length)];
+                try {
+                    const res = await fetch(apiUrl);
+                    const data = await res.json();
+
+                    // Different APIs may have different response keys
+                    let imageUrl = data.url || data.image || data.images?.[0];
+                    if (imageUrl) images.push(imageUrl);
+                } catch (err) {
+                    console.error(`Error fetching from ${apiUrl}:`, err);
+                }
             }
 
-            await sock.sendMessage(from, {
-                image: { url: data.url },
-                caption: `✨ *Anime (${chosen})*`
-            });
+            if (images.length === 0) {
+                return await sock.sendMessage(m.key.remoteJid, { text: "❌ Failed to fetch catgirl anime images. Try again!" }, { quoted: m });
+            }
+
+            // Send all 5 images
+            for (const img of images) {
+                await sock.sendMessage(m.key.remoteJid, {
+                    image: { url: img },
+                    caption: `✨ *Catgirl Anime (${chosenCategory})*`
+                }, { quoted: m });
+            }
 
         } catch (err) {
             console.error("❌ Anime.js error:", err);
-            await sock.sendMessage(from, { text: "⚠️ Failed to fetch anime." });
+            await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Something went wrong while fetching anime." }, { quoted: m });
         }
     }
 };
