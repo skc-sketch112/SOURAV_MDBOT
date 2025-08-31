@@ -24,16 +24,16 @@ module.exports = {
       }
 
       const prefix = ".";
-      const ownerName = "SOURAV"; // Keep OWNER normal, your name bold
+      const ownerName = "SOURAV";
       const version = "5";
       const plan = "FREE";
-      const user = "SOURAV"; // Bold in message
+      const user = "SOURAV";
       const uptimeStr = new Date(process.uptime() * 1000).toISOString().substr(11, 8);
       const ramUsed = (os.totalmem() - os.freemem()) / (1024 * 1024);
       const ramTotal = os.totalmem() / (1024 * 1024);
       const ramPercent = ((ramUsed / ramTotal) * 100).toFixed(1);
 
-      // 🟢 Menu Header (Premium Bold Style)
+      // 🟢 Menu Header
       let menuText = `╔═══════════════╗\n`;
       menuText += `║   *SOURAV_MD-V5*   ║\n`;
       menuText += `╚═══════════════╝\n\n`;
@@ -52,17 +52,23 @@ module.exports = {
       menuText += `◆ MODE: *Public*\n`;
       menuText += `◆ MOOD: *⚡*\n\n`;
 
-      // 🟢 Commands by Category
-      const categories = {};
-      commands.forEach(cmd => {
-        const cat = cmd.category || "Others";
-        if (!categories[cat]) categories[cat] = [];
-        categories[cat].push(cmd);
-      });
+      // 🟢 Categories
+      const categories = {
+        FUN: ["8ball","reel","rcolor","rpg","aura","coin flip","lucky","slot","truth","dare","rate"],
+        ANIME: ["anime1","anime2","anime3","anime4","anime6","anime7","anime8","anime9","anime10","anime11","anime12","animeart","anime wall"],
+        BOOK: ["hanuman chalisa","gita","quran","book"],
+        TOOL: ["APK","PDF","TTS","DMPROTECT","Ghibli","wikipedia","define","dictionary","grammer","calculator","vv","url","SETNSNE","AUTOBIO","AUTORRACTION","AUTONAME"],
+        AI: ["imagine","imagine2","imagine3","imagine4","perplexity","ai voice","ai video"],
+        GROUP: [] // Add GROUP commands here later
+      };
 
+      // Organize commands by category
       for (const cat in categories) {
-        menuText += `╭━━━ *${cat.toUpperCase()}* ━━━╮\n`;
-        categories[cat].forEach((cmd, i) => {
+        const catCommands = commands.filter(cmd => categories[cat].includes(cmd.name));
+        if (catCommands.length === 0) continue;
+
+        menuText += `╭━━━ *${cat}* ━━━╮\n`;
+        catCommands.forEach((cmd, i) => {
           menuText += `┃ ${i + 1}. *${prefix}${cmd.name}*`;
           if (cmd.alias && cmd.alias.length) menuText += ` (alias: *${cmd.alias.join(", ")}*)`;
           menuText += `\n`;
@@ -86,19 +92,27 @@ module.exports = {
         }
       ];
 
-      // 🟢 Send Menu with Optional Image
-      const menuImage = fs.existsSync(path.join(__dirname, "menu.jpg")) ? {
-        image: fs.readFileSync(path.join(__dirname, "menu.jpg")),
-        caption: menuText,
-        buttons: buttons,
-        headerType: 4
-      } : {
-        text: menuText,
-        buttons: buttons,
-        headerType: 1
-      };
+      // 🟢 Send Menu with Image
+      const imagePath = path.join(__dirname, "media", "menu.jpg");
+      let menuMessage;
+      if (fs.existsSync(imagePath)) {
+        const imageBuffer = fs.readFileSync(imagePath);
+        menuMessage = {
+          image: imageBuffer,
+          caption: menuText,
+          footer: 'Powered by SOURAV',
+          buttons: buttons,
+          headerType: 4
+        };
+      } else {
+        menuMessage = {
+          text: menuText,
+          buttons: buttons,
+          headerType: 1
+        };
+      }
 
-      await sock.sendMessage(msg.key.remoteJid, menuImage, { quoted: msg });
+      await sock.sendMessage(msg.key.remoteJid, menuMessage, { quoted: msg });
 
     } catch (err) {
       console.error("❌ Menu Error:", err);
