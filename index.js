@@ -1,3 +1,28 @@
+// ================== WHATSAPP-WEB.JS CLIENT ==================
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
+
+const client = new Client({
+    authStrategy: new LocalAuth()
+});
+
+client.on('qr', (qr) => {
+    qrcode.generate(qr, { small: true });
+    console.log('QR code received, scan it with WhatsApp.');
+});
+
+client.on('ready', () => {
+    console.log('WhatsApp Userbot is ready!');
+});
+
+client.on('message', message => {
+    if (message.body === '!ping') {
+        message.reply('Pong!');
+    }
+});
+
+client.initialize();
+
 // ================== IMPORTS ==================
 const express = require("express");
 const {
@@ -224,7 +249,7 @@ ${greeting}
       await sock.sendPresenceUpdate("available"); 
       debugLog("📡 Keep-alive ping sent!"); 
     } catch (err) { console.error(chalk.red("Keep-alive ping error:"), err.message); }
-  }, 2 * 60 * 1000);
+    }, 2 * 60 * 1000);
 
   // ================== ERROR HANDLERS ==================
   process.on("uncaughtException", (err) => console.error(chalk.red("❌ Uncaught Exception:"), err.stack || err.message));
