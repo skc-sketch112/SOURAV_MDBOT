@@ -1,108 +1,244 @@
-const figlet = require("figlet");
-
-// 100+ styles (expand anytime 🚀)
-const patterns = {
-  ascii: async (text) =>
-    new Promise((resolve, reject) => {
-      figlet.text(text, { font: "Standard" }, (err, data) => {
-        if (err) reject(err);
-        else resolve("```" + data + "```");
-      });
-    }),
-
-  // 🔥 Emoji styles
-  fire: async (text) => text.split("").map(c => c === " " ? "\n" : "🔥").join(" "),
-  heart: async (text) => text.split("").map(c => c === " " ? "\n" : "❤️").join(" "),
-  star: async (text) => text.split("").map(c => c === " " ? "\n" : "⭐").join(" "),
-  flower: async (text) => text.split("").map(c => c === " " ? "\n" : "🌸").join(" "),
-  ghost: async (text) => text.split("").map(c => c === " " ? "\n" : "👻").join(" "),
-  bomb: async (text) => text.split("").map(c => c === " " ? "\n" : "💣").join(" "),
-  skull: async (text) => text.split("").map(c => c === " " ? "\n" : "💀").join(" "),
-  dragon: async (text) => text.split("").map(c => c === " " ? "\n" : "🐉").join(" "),
-  diamond: async (text) => text.split("").map(c => c === " " ? "\n" : "💎").join(" "),
-  crown: async (text) => text.split("").map(c => c === " " ? "\n" : "👑").join(" "),
-  firework: async (text) => text.split("").map(c => c === " " ? "\n" : "🎆").join(" "),
-  sun: async (text) => text.split("").map(c => c === " " ? "\n" : "☀️").join(" "),
-  moon: async (text) => text.split("").map(c => c === " " ? "\n" : "🌙").join(" "),
-  cloud: async (text) => text.split("").map(c => c === " " ? "\n" : "☁️").join(" "),
-  rain: async (text) => text.split("").map(c => c === " " ? "\n" : "🌧️").join(" "),
-  snow: async (text) => text.split("").map(c => c === " " ? "\n" : "❄️").join(" "),
-  music: async (text) => text.split("").map(c => c === " " ? "\n" : "🎵").join(" "),
-  sparkle: async (text) => text.split("").map(c => c === " " ? "\n" : "✨").join(" "),
-  angel: async (text) => text.split("").map(c => c === " " ? "\n" : "😇").join(" "),
-  robot: async (text) => text.split("").map(c => c === " " ? "\n" : "🤖").join(" "),
-  alien: async (text) => text.split("").map(c => c === " " ? "\n" : "👽").join(" "),
-  snake: async (text) => text.split("").map(c => c === " " ? "\n" : "🐍").join(" "),
-  tiger: async (text) => text.split("").map(c => c === " " ? "\n" : "🐯").join(" "),
-  lion: async (text) => text.split("").map(c => c === " " ? "\n" : "🦁").join(" "),
-  wolf: async (text) => text.split("").map(c => c === " " ? "\n" : "🐺").join(" "),
-  eagle: async (text) => text.split("").map(c => c === " " ? "\n" : "🦅").join(" "),
-  spider: async (text) => text.split("").map(c => c === " " ? "\n" : "🕷️").join(" "),
-  web: async (text) => text.split("").map(c => c === " " ? "\n" : "🕸️").join(" "),
-  sword: async (text) => text.split("").map(c => c === " " ? "\n" : "⚔️").join(" "),
-  shield: async (text) => text.split("").map(c => c === " " ? "\n" : "🛡️").join(" "),
-  money: async (text) => text.split("").map(c => c === " " ? "\n" : "💰").join(" "),
-  fireball: async (text) => text.split("").map(c => c === " " ? "\n" : "🔥💨").join(" "),
-  boom: async (text) => text.split("").map(c => c === " " ? "\n" : "💥").join(" "),
-  swordfire: async (text) => text.split("").map(c => c === " " ? "\n" : "⚔️🔥").join(" "),
-  ghostfire: async (text) => text.split("").map(c => c === " " ? "\n" : "👻🔥").join(" "),
-  skullfire: async (text) => text.split("").map(c => c === " " ? "\n" : "💀🔥").join(" "),
-  thunder: async (text) => text.split("").map(c => c === " " ? "\n" : "⚡").join(" "),
-  wave: async (text) => text.split("").map(c => c === " " ? "\n" : "🌊").join(" "),
-  earth: async (text) => text.split("").map(c => c === " " ? "\n" : "🌍").join(" "),
-  rocket: async (text) => text.split("").map(c => c === " " ? "\n" : "🚀").join(" "),
-  boomfire: async (text) => text.split("").map(c => c === " " ? "\n" : "💥🔥").join(" "),
-  demon: async (text) => text.split("").map(c => c === " " ? "\n" : "😈").join(" "),
-  angelFire: async (text) => text.split("").map(c => c === " " ? "\n" : "😇🔥").join(" "),
-  rainbow: async (text) => text.split("").map(c => c === " " ? "\n" : "🌈").join(" "),
-  skullMoney: async (text) => text.split("").map(c => c === " " ? "\n" : "💀💰").join(" "),
-  toxic: async (text) => text.split("").map(c => c === " " ? "\n" : "☢️").join(" "),
-  biohazard: async (text) => text.split("").map(c => c === " " ? "\n" : "☣️").join(" "),
-  cross: async (text) => text.split("").map(c => c === " " ? "\n" : "✝️").join(" "),
-  om: async (text) => text.split("").map(c => c === " " ? "\n" : "🕉️").join(" "),
-  trident: async (text) => text.split("").map(c => c === " " ? "\n" : "🔱").join(" "),
-  lotus: async (text) => text.split("").map(c => c === " " ? "\n" : "🌸").join(" "),
-
-  // 🔥 Custom Emoji
-  customEmoji: async (text, emoji) =>
-    text.split("").map(c => (c === " " ? "\n" : emoji)).join(" "),
-};
-
 module.exports = {
-  name: "pattern",
-  alias: ["ascii", "emoji", "style"],
-  desc: "Generate stylish text patterns (100+ styles)",
+  name: "tp",
+  alias: ["pattern", "tp"],
+  desc: "Generate ASCII art patterns",
   category: "fun",
-  usage: ".pattern <style> <text> | .pattern emoji <text> <emoji>",
+  usage: ".tp <pattern>",
   async execute(sock, msg, args) {
     try {
-      if (args.length < 2) {
-        return sock.sendMessage(msg.from, {
-          text: `❌ Usage:\n.pattern ascii hello\n.pattern fire hello\n.pattern emoji hello 🌸\n\nAvailable styles: ${Object.keys(patterns).join(", ")}`,
-        }, { quoted: msg });
+      if (!args[0]) {
+        return await sock.sendMessage(
+          msg.key.remoteJid,
+          { text: "❌ Usage: .tp <pattern>\n👉 Example: .tp heart" },
+          { quoted: msg }
+        );
       }
 
-      const style = args[0].toLowerCase();
-      const text = args.slice(1).join(" ");
+      const pattern = args[0].toLowerCase();
 
-      let output;
+      const arts = {
+        heart: `
+   .:::.   .:::.
+  :::::::.:::::::
+  :::::::::::::::
+  ':::::::::::::'
+    ':::::::::'
+      ':::::'
+        ':'`,
 
-      if (style === "emoji") {
-        const split = args.slice(1);
-        const emoji = split[split.length - 1];
-        const word = split.slice(0, -1).join(" ");
-        output = await patterns.customEmoji(word, emoji);
-      } else if (patterns[style]) {
-        output = await patterns[style](text);
-      } else {
-        output = "⚠️ Unknown style! Try: " + Object.keys(patterns).join(", ");
+        smallheart: `
+  ,d88b.d88b,
+  88888888888
+  'Y8888888Y'
+    'Y888Y'  
+      'Y'`,
+
+        tree: `
+    &&& &&  & &&
+   && &\\/&\\|& ()|/ @, &&
+   &\\/(/&/&||/& /_/)_&/_&
+ &() &\\/&|()|/&\\/ '%" &
+  &_\\_&&_\\ |& |&&/&__%_/
+ &&   && & &| &| /& & % ()&
+    ()&_---()&\\&\\|&&-&&--%
+          &&     \\|||
+                  |||
+                  |||
+                  |||`,
+
+        rocket: `
+        /\\
+       |==|
+       |  |
+       |  |
+      /____\\
+      |    |
+      |🚀 |
+      |    |
+     /| |  |\\
+    /_|_|__|_\\`,
+
+        cat: `
+ /\\_/\\  
+( o.o ) 
+ > ^ <`,
+
+        dog: `
+ / \\__
+(    @\\____
+ /         O
+/   (_____/
+/_____/   U`,
+
+        rabbit: `
+  (\\_/)
+  ( •_•)
+  />🥕`,
+
+        fish: `
+><(((('>`,
+
+        bird: `
+  \\
+   \\\\
+    (o>
+\\\\_//)
+ \\_/_)
+  _|_`,
+
+        owl: `
+ ,_,  
+(o,o) 
+(   ) 
+ " " `,
+
+        penguin: `
+   (o_>
+  //\\
+  V_/_`,
+
+        elephant: `
+   /  \\~~~/  \\
+  (    . .    )
+  (    \\_v/   )`,
+
+        monkey: `
+  w  c( .. )o
+   \\__(- )
+      /\`-\\`,
+
+        skull: `
+  _____
+ /     \\
+| () () |
+ \\  ^  /
+  |||||
+  |||||`,
+
+        ghost: `
+ .-"      "-.
+ /            \\
+|,  .-.  .-.  ,|
+| )(_o/  \\o_)( |
+|/     /\\     \\|
+(_     ^^     _)
+ \\__|IIIIII|__/
+  | \\IIIIII/ |
+  \\          /
+   \`--------\``,
+
+        flower: `
+   @@@
+  @@@@@
+ @@@@@@@
+  @@@@@
+   @@@
+    |`,
+
+        crown: `
+   .-=========-.
+   \\'-=======-'/
+   _|   .=.   |_
+  ((|  {{1}}  |))
+   \\|   /|\\   |/
+    \\__\\'-'__/`,
+
+        car: `
+    ______
+ __//__|__\\\\___
+| _ | -|-  _ |
+'-(_)--(_)--(_)'`,
+
+        bike: `
+   __o
+ _ \\<_
+(_)/(_)`,
+
+        boat: `
+     |    |    |
+    )_)  )_)  )_)
+   )___))___))___)
+  )____)____)_____)
+\\_____|____|____|____/
+ \\                   /
+~~~~~~~~~~~~~~~~~~~~~~~~`,
+
+        plane: `
+     __|__
+--@--@--(_)--@--@--`,
+
+        sword: `
+     />======================
+[########[]==================>
+     \\>`,
+
+        gun: `
+   _,--=--._
+ ,'          '.
+ /    _..._    \\
+|   /_...._\\    |
+|                |
+ \\              /
+  \`'--......--'`,
+
+        house: `
+    /\\
+   /  \\
+  /____\\
+ |      |
+ | [] []|
+ |      |`,
+
+        robot: `
+ [::]   [::]
+ [::]   [::]
+   \\_____/ 
+   / 0 0 \\
+  (   -   )
+   \\_____/
+   /     \\
+  (_______)`,
+
+        alien: `
+   .-""-.
+  /[] _ _\\_
+ _|_o_LII|_|
+/ | ==== | \\
+||  ====  ||`,
+
+        banner: `
+██████╗  █████╗ ███╗   ██╗███╗   ██╗███████╗██████╗ 
+██╔══██╗██╔══██╗████╗  ██║████╗  ██║██╔════╝██╔══██╗
+██████╔╝███████║██╔██╗ ██║██╔██╗ ██║█████╗  ██████╔╝
+██╔═══╝ ██╔══██║██║╚██╗██║██║╚██╗██║██╔══╝  ██╔══██╗
+██║     ██║  ██║██║ ╚████║██║ ╚████║███████╗██║  ██║
+╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝`,
+
+        smiley: `
+   _____
+  /     \\
+ | () () |
+  \\  ^  /
+   |||||
+   |||||`
+      };
+
+      if (!arts[pattern]) {
+        return await sock.sendMessage(
+          msg.key.remoteJid,
+          { text: "❌ Pattern not found!\n👉 Try: heart, tree, rocket, cat, dog, rabbit, fish, bird, penguin, skull, ghost, crown, car, bike, boat, plane, sword, house, robot, banner, etc." },
+          { quoted: msg }
+        );
       }
 
-      await sock.sendMessage(msg.from, { text: output }, { quoted: msg });
-
-    } catch (err) {
-      console.error("⚠️ Pattern plugin error:", err);
-      sock.sendMessage(msg.from, { text: "⚠️ Error generating pattern" }, { quoted: msg });
+      // ✅ monospace always
+      await sock.sendMessage(
+        msg.key.remoteJid,
+        { text: "```" + arts[pattern].trim() + "```" },
+        { quoted: msg }
+      );
+    } catch (e) {
+      console.error("❌ Error in tp plugin:", e);
     }
-  },
+  }
 };
