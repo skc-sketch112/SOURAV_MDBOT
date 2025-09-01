@@ -3,8 +3,9 @@ FROM node:20.9.0-slim
 
 WORKDIR /usr/src/app
 
-# Install runtime dependencies
+# Install runtime dependencies + Git
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
     ffmpeg \
     libvips-dev \
     libcairo2-dev \
@@ -18,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy package files
 COPY package*.json ./
 
-# Install all dependencies with legacy-peer-deps to fix conflicts
+# Install all dependencies with legacy-peer-deps
 RUN npm install --legacy-peer-deps
 
 # Copy app source
