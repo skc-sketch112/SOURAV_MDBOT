@@ -3,9 +3,11 @@ FROM node:20.9.0-slim
 
 WORKDIR /usr/src/app
 
-# Install runtime dependencies + Git
+# Install runtime dependencies + Git + SSH + CA certificates
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
+    openssh-client \
+    ca-certificates \
     ffmpeg \
     libvips-dev \
     libcairo2-dev \
