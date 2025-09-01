@@ -18,8 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy package files
 COPY package*.json ./
 
-# Install all dependencies
-RUN npm install
+# Install all dependencies with legacy-peer-deps to fix conflicts
+RUN npm install --legacy-peer-deps
 
 # Copy app source
 COPY . .
