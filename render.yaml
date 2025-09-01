@@ -1,13 +1,23 @@
-# render.yaml
+# render.yaml - WhatsApp Userbot Production
 services:
   - type: web
-    name: souravmd-bot
+    name: whatsapp-userbot
     env: docker
-    plan: free  # or starter/standard depending on your needs
-
-    # Force Render to build without buggy cache
-    buildCommand: |
-      export DOCKER_BUILDKIT=0
-      docker build --no-cache -t souravmd-bot .
-
+    plan: starter
     autoDeploy: true
+    dockerfilePath: Dockerfile
+    buildCommand: ""
+    startCommand: "pm2-runtime index.js --name whatsapp-userbot"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      # Add any WhatsApp bot tokens or secrets here
+      - key: WHATSAPP_SESSION
+        value: "your-session-key"
+    persistentDisk:
+      mountPath: /usr/src/app/node_modules
+      sizeGB: 1
+    logs:
+      retentionDays: 7  # Keep logs for 7 days
