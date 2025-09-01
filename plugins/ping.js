@@ -1,60 +1,64 @@
-const fs = require("fs");
-const path = require("path");
+const { performance } = require("perf_hooks");
+const os = require("os");
 
 module.exports = {
   name: "ping",
-  command: ["ping"],
-  execute: async (sock, m, args) => {
+  alias: ["p"],
+  desc: "Check bot status & ping",
+  category: "general",
+  usage: ".ping",
+  async execute(sock, msg, args) {
     try {
-      const chatId = m.key.remoteJid;
+      const start = performance.now();
 
-      // Step 1: Send "Pinging..." with animation (loading effect)
-      let loadingFrames = [
-        "⏳ Pinging.",
-        "⏳ Pinging..",
-        "⏳ Pinging...",
-        "⏳ Pinging....",
-        "⏳ Pinging.....",
-      ];
+      // Initial msg
+      const sentMsg = await sock.sendMessage(msg.key.remoteJid, {
+        text: "⚡ Initializing ping..."
+      });
 
-      let sentMsg = await sock.sendMessage(chatId, { text: loadingFrames[0] }, { quoted: m });
-
-      // Animate by editing the message
-      for (let i = 1; i < loadingFrames.length; i++) {
-        await new Promise((r) => setTimeout(r, 500)); // 0.5s delay
-        await sock.sendMessage(chatId, { text: loadingFrames[i], edit: sentMsg.key });
+      // Animate loading (edit same msg instead of sending new msgs)
+      const frames = ["⚡ Pinging", "⚡ Pinging.", "⚡ Pinging..", "⚡ Pinging..."];
+      for (let i = 0; i < frames.length; i++) {
+        await new Promise(res => setTimeout(res, 450));
+        await sock.sendMessage(msg.key.remoteJid, {
+          edit: sentMsg.key,
+          text: frames[i]
+        });
       }
 
-      // Step 2: Generate random GIF (you can keep your own collection in ./media/gif)
-      const gifs = fs.readdirSync(path.join(__dirname, "media", "gif"));
-      const randomGif = gifs[Math.floor(Math.random() * gifs.length)];
-      const gifPath = path.join(__dirname, "media", "gif", randomGif);
+      // Stats
+      const end = performance.now();
+      const ping = Math.round(end - start);
+      const uptime = process.uptime();
+      const uptimeStr = new Date(uptime * 1000).toISOString().substr(11, 8);
+      const version = "4.0.0";
 
-      // Step 3: Final stylish output (like the screenshot)
-      const finalText = `
-╭━━━〔 𝗦𝗢𝗨𝗥𝗔𝗩_𝗠𝗗 〕━━━╮
-┃ ⚡ 𝗩𝗲𝗿𝘀𝗶𝗼𝗻 : 𝟰.𝟬𝟴.𝟬𝟵
-┃ ⏱ 𝗣𝗶𝗻𝗴 : *${Math.floor(Math.random() * 100)}ms*
-┃ 🧑 𝗢𝘄𝗻𝗲𝗿 : 𝗦𝗢𝗨𝗥𝗔𝗩
-┃ 🚀 𝗦𝘁𝗮𝘁𝘂𝘀 : *𝗢𝗻𝗹𝗶𝗻𝗲*
-╰━━━━━━━━━━━━━━╯
-🔥 *Welcome to 𝗦𝗢𝗨𝗥𝗔𝗩_𝗠𝗗* 🔥
+      // Styled ping text
+      const pingGlow = `🔥 ${ping} ms 🔥`;
+
+      // Final result
+      const styledMsg = `
+╭━━━〔 ✨ *SOURAV_MD V4* ✨ 〕━━━╮
+
+┣ 🚀 *Version* : ${version}
+┣ ⏱ *Uptime*  : ${uptimeStr}
+┣ 💻 *Host*    : ${os.hostname()}
+┣ 🟢 *Status*  : ✅ Working Fine
+┣ 📡 *Ping*    : ${pingGlow}
+
+╰━━━━━━━━━━━━━━━━━━━━━━╯
+⚡ Powered by *SOURAV_MD*
       `;
 
-      await new Promise((r) => setTimeout(r, 800)); // Small delay for effect
+      // Edit last frame into styled result
+      await sock.sendMessage(msg.key.remoteJid, {
+        edit: sentMsg.key,
+        text: styledMsg
+      });
 
-      await sock.sendMessage(
-        chatId,
-        {
-          video: fs.readFileSync(gifPath),
-          caption: finalText,
-          gifPlayback: true,
-        },
-        { quoted: m }
-      );
-    } catch (e) {
-      console.error("Ping error:", e);
-      await sock.sendMessage(m.key.remoteJid, { text: "❌ Error in ping command!" }, { quoted: m });
+    } catch (err) {
+      console.error("Ping command error:", err);
+      await sock.sendMessage(msg.key.remoteJid, { text: "❌ Error in .ping command!" });
     }
-  },
+  }
 };
