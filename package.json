@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "genius-lyrics-api": "^3.2.0",
-    "@whiskeysockets/baileys": "6.7.18",
+    "@whiskeysockets/baileys": "6.6.0",
     "@bochilteam/scraper": "4.2.4",
     "whatsapp-web.js": "1.32.0",
     "genius-lyrics": "4.4.7",
