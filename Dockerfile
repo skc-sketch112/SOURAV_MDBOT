@@ -1,9 +1,9 @@
-# ===== Single-stage optimized Dockerfile for production =====
+# ===== WhatsApp Userbot Dockerfile =====
 FROM node:20.9.0-slim
 
 WORKDIR /usr/src/app
 
-# Install runtime system dependencies
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libvips-dev \
@@ -15,23 +15,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package files first
+# Copy package files
 COPY package*.json ./
 
-# Install production dependencies
-RUN npm install --production
+# Install all dependencies
+RUN npm install
 
-# Copy source code
+# Copy app source
 COPY . .
 
-# Optional: prune dev dependencies
-RUN npm prune --production
-
-# Expose port if needed (for webhooks or dashboard)
-EXPOSE 10000
-
-# Use a process manager to auto-restart on crash
+# Install PM2 globally (prod)
 RUN npm install -g pm2
 
-# Start bot using PM2 (auto-restart enabled)
-CMD ["pm2-runtime", "index.js", "--name", "whatsapp-userbot"]
+# Install nodemon globally (dev)
+RUN npm install -g nodemon
+
+# Expose port (for webhooks/dashboard)
+EXPOSE 10000
+
+# Auto-detect environment based on branch
+CMD if [ "$RENDER_GIT_BRANCH" = "main" ]; then \
+        echo "Starting production with PM2"; \
+        pm2-runtime index.js --name whatsapp-userbot; \
+    else \
+        echo "Starting development with nodemon"; \
+        nodemon index.js; \
+    fi
