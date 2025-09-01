@@ -1,11 +1,11 @@
 # ================================
-# 🔨 Build Stage (with all dev tools)
+# 🔨 Build Stage (with full tools)
 # ================================
 FROM node:20-bullseye AS builder
 
 WORKDIR /usr/src/app
 
-# Install build dependencies for native modules
+# Install required build deps
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -24,20 +24,20 @@ RUN apt-get update && apt-get install -y \
 # Copy package files
 COPY package*.json ./
 
-# Install npm dependencies (build complete here)
+# Install dependencies (skip optional peer conflicts)
 RUN npm install --legacy-peer-deps
 
-# Copy all project files
+# Copy source code
 COPY . .
 
 # ================================
-# 🚀 Runtime Stage (lightweight)
+# 🚀 Runtime Stage (optimized)
 # ================================
-FROM node:20-bullseye
+FROM node:20-slim
 
 WORKDIR /usr/src/app
 
-# Install only runtime dependencies
+# Install only runtime deps (minimal image, but includes ffmpeg, sharp deps, curl)
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libvips-dev \
@@ -49,18 +49,16 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy node_modules from builder (already compiled)
+# Copy compiled node_modules and app code from builder
 COPY --from=builder /usr/src/app/node_modules ./node_modules
-
-# Copy project files
 COPY --from=builder /usr/src/app ./
 
-# Expose Express/keep-alive port
+# Expose keep-alive / Express server port
 EXPOSE 3000
 
-# Add Healthcheck (pings the bot every 30s, retries 3 times)
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+# Healthcheck (restarts container if bot is unresponsive)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:3000/ || exit 1
 
-# Start bot
+# Run the bot
 CMD ["node", "index.js"]
