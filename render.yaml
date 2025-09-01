@@ -15,6 +15,3 @@ services:
         value: "10000"
       - key: WHATSAPP_SESSION
         value: "your-session-key"
-    persistentDisk:
-      mountPath: /usr/src/app/node_modules
-      sizeGB: 1
