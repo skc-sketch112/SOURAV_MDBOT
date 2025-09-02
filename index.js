@@ -196,7 +196,7 @@ ${greeting}
       if(!global.autoReact) return;
       const msg = messages[0];
       if(!msg.message || msg.key.fromMe) return;
-      const emojis = ["🔥","😂","❤️",""👍","🤯","👑","💀","🥳","✨","😎"];
+      const emojis = ["🔥","😂","❤️","👍","🤯","👑","💀","🥳","✨","😎"];
       const reaction = emojis[Math.floor(Math.random() * emojis.length)];
 
       await sock.sendMessage(msg.key.remoteJid, { react: { text: reaction, key: msg.key } });
