@@ -11,5 +11,6 @@ services:
       - key: PORT
         value: "10000"
     persistentVolumes:
-      - mountPath: /usr/src/app/auth
-        sizeGB: 1           # Keeps WhatsApp session alive
+      - volumeName: whatsapp-auth
+        mountPath: /usr/src/app/auth
+        sizeGB: 1
