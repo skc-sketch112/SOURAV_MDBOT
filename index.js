@@ -11,7 +11,6 @@ const pino = require("pino");
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
-const fetch = require("node-fetch");
 const moment = require("moment");
 const figlet = require("figlet");
 const chalk = require("chalk");
@@ -51,7 +50,6 @@ function loadPlugin(file) {
     if (plugin.command && Array.isArray(plugin.command)) aliases = plugin.command.map(c => c.toLowerCase());
     else if (plugin.command && typeof plugin.command === "string") aliases = [plugin.command.toLowerCase()];
     else aliases = [pluginName.toLowerCase()];
-
     aliases.forEach(alias => commands.set(alias, plugin));
     console.log(chalk.green(`✅ Successfully imported plugin:`), chalk.cyan(pluginName), `[${aliases.join(", ")}]`);
   } catch (err) {
@@ -66,11 +64,7 @@ function loadPlugins() {
     .filter(file => file.endsWith(".js"))
     .forEach(file => loadPlugin(file));
 }
-
-// Load all plugins on startup
 loadPlugins();
-
-// ======= HOT RELOAD DISABLED FOR STABILITY =======
 
 // ================== START BAILEYS CLIENT ==================
 async function startBot() {
@@ -116,7 +110,6 @@ async function startBot() {
       try {
         const userJid = sock.user?.id?.split(":")[0] + "@s.whatsapp.net" || null;
         if (!userJid) return console.warn(chalk.yellow("[Welcome] No valid user JID."));
-
         const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json")));
         const botVersion = packageJson.version || "3.0.0";
         const timestamp = moment().format("DD/MM/YYYY HH:mm:ss");
@@ -133,8 +126,8 @@ async function startBot() {
 - 🤖 AI-powered chat & fun
 - ⚙️ Automation & advanced plugins
 
-✨ *Loader Status:*
-${[...commands.keys()].map(c => `- ✅ Loaded: ${c}`).join("\n")}
+✨ *Loaded Commands:*
+${[...commands.keys()].map(c => `- ✅ ${c}`).join("\n")}
         `;
         await sock.sendMessage(userJid, { text: welcomeMessage });
         console.log(chalk.green("[Welcome] Welcome message sent immediately."));
