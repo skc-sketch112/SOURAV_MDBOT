@@ -6,7 +6,6 @@ services:
     autoDeploy: true
     dockerfilePath: Dockerfile
     buildCommand: ""        
-    startCommand: "node index.js"
     envVars:
       - key: PORT
         value: "10000"
