@@ -2,7 +2,7 @@ const axios = require("axios");
 
 module.exports = {
   name: "img",
-  command: ["img", "image", "imagine", "imagesearch"],
+  command: ["img", "image", "imagesearch"],
   description: "Fetch images from multiple sources with exact keyword match",
 
   async execute(sock, m, args) {
@@ -51,7 +51,7 @@ module.exports = {
     // Pexels
     urls.push(...await fetchFromAPI(
       `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=15`,
-      { Authorization: "YOUR_PEXELS_API_KEY" },
+      { Authorization: "2OHAFWxDxIbbzzfpsIx68eXOAFQ9MtWWZcrQBUoslhwRTlv3tOU6tFo5" },
       data => data.photos.map(img => img.src?.original).filter(Boolean)
     ));
 
@@ -70,7 +70,7 @@ module.exports = {
 
     // Pixabay
     urls.push(...await fetchFromAPI(
-      `https://pixabay.com/api/?key=YOUR_PIXABAY_API_KEY&q=${encodeURIComponent(query)}&per_page=15`,
+      `https://pixabay.com/api/?key=51874106-2a96202d9815d07ac95dba697&q=${encodeURIComponent(query)}&per_page=15`,
       {},
       data => data.hits.map(img => img.webformatURL).filter(Boolean)
     ));
