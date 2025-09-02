@@ -1,6 +1,4 @@
-// ================== WHATSAPP-WEB.JS CLIENT ==================
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+// ================== IMPORTS ==================
 const express = require("express");
 const {
   default: makeWASocket,
@@ -67,28 +65,8 @@ function loadPlugins() {
 }
 loadPlugins();
 
-if (fs.existsSync(PLUGIN_DIR)) {
-  fs.watch(PLUGIN_DIR, (eventType, filename) => {
-    if (filename && filename.endsWith(".js")) {
-      console.log(chalk.yellow(`♻️ Plugin change detected: ${filename}, reloading...`));
-      loadPlugins();
-    }
-  });
-}
-
-// ================== WHATSAPP-WEB.JS CLIENT ==================
-const client = new Client({ authStrategy: new LocalAuth() });
-
-client.on('qr', (qr) => {
-  qrcode.generate(qr, { small: true });
-  console.log('📲 QR code received, scan it with WhatsApp.');
-});
-
-client.on('ready', () => console.log(chalk.green("✅ WhatsApp Userbot is ready!")));
-
-client.on('message', async (message) => {
-  if(message.body === '!ping') message.reply('Pong!');
-});
+// ======= HOT RELOAD DISABLED FOR STABILITY =======
+// fs.watch(PLUGIN_DIR, (eventType, filename) => { ... }); // removed
 
 // ================== START BAILEYS CLIENT ==================
 async function startBot() {
@@ -101,7 +79,7 @@ async function startBot() {
     qrTimeout: 0,
     auth: state,
     version,
-    keepAliveIntervalMs: 20000, // strong keep-alive
+    keepAliveIntervalMs: 20000,
     syncFullHistory: true
   });
 
@@ -197,8 +175,7 @@ ${greeting}
       const msg = messages[0];
       if(!msg.message || msg.key.fromMe) return;
       const emojis = ["🔥","😂","❤️","👍","🤯","👑","💀","🥳","✨","😎"];
-      const reaction = emojis[Math.floor(Math.random() * emojis.length)];
-
+      const reaction = emojis[Math.floor(Math.random()*emojis.length)];
       await sock.sendMessage(msg.key.remoteJid, { react: { text: reaction, key: msg.key } });
       debugLog("🤖 AutoReact sent:", reaction);
     } catch (err) { console.error(chalk.red("AutoReact error:"), err.message); }
@@ -210,7 +187,7 @@ ${greeting}
       await sock.sendPresenceUpdate("available"); 
       debugLog("📡 Keep-alive ping sent!"); 
     } catch (err) { console.error(chalk.red("Keep-alive ping error:"), err.message); }
-    }, 2 * 60 * 1000);
+  }, 2 * 60 * 1000);
 
   // ================== ERROR HANDLERS ==================
   process.on("uncaughtException", (err) => console.error(chalk.red("❌ Uncaught Exception:"), err.stack || err.message));
