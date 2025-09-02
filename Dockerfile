@@ -3,7 +3,7 @@ FROM node:20.9.0-bullseye-slim
 
 WORKDIR /usr/src/app
 
-# Install runtime + build dependencies for canvas, ffmpeg, sharp
+# Install runtime + build dependencies for canvas, ffmpeg, sharp, puppeteer, yt-dlp
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     openssh-client \
@@ -30,6 +30,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdg-utils \
     curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install yt-dlp (latest) manually
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+    -o /usr/local/bin/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp
 
 # Copy package files
 COPY package*.json ./
