@@ -24,26 +24,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy package files
 COPY package*.json ./
 
-# Install all dependencies with legacy-peer-deps
+# Install dependencies with legacy-peer-deps
 RUN npm install --legacy-peer-deps
 
 # Copy app source
 COPY . .
 
-# Install PM2 globally (prod)
-RUN npm install -g pm2
-
-# Install nodemon globally (dev)
-RUN npm install -g nodemon
-
 # Expose port (for webhooks/dashboard)
 EXPOSE 10000
 
-# Auto-detect environment based on branch
-CMD if [ "$RENDER_GIT_BRANCH" = "main" ]; then \
-        echo "Starting production with PM2"; \
-        pm2-runtime index.js --name whatsapp-userbot; \
-    else \
-        echo "Starting development with nodemon"; \
-        nodemon index.js; \
-    fi
+# Start the bot directly without PM2 or nodemon
+CMD ["node", "index.js"]
