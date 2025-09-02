@@ -1,51 +1,46 @@
-const { exec } = require("child_process");
 const fs = require("fs");
+const { exec } = require("child_process");
 const path = require("path");
 
 module.exports = {
   name: "nightcore",
   alias: ["nc"],
-  desc: "Convert any audio into Nightcore version (speed + pitch up)",
-  category: "audio",
-  usage: ".nightcore (reply to audio)",
+  desc: "Convert tagged audio into Nightcore version",
+  category: "music",
+  usage: ".nightcore (reply to an audio)",
 
   async execute(sock, msg, args) {
     try {
-      if (!msg.quoted || !msg.quoted.audioMessage) {
-        return await sock.sendMessage(msg.key.remoteJid, { text: "⚠️ Reply to an audio file to nightcore it!" }, { quoted: msg });
+      const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+      const audioMsg = quoted?.audioMessage;
+
+      if (!audioMsg) {
+        return sock.sendMessage(msg.key.remoteJid, { text: "⚠️ Reply to an audio file to convert." }, { quoted: msg });
       }
 
-      // Download quoted audio
-      const buffer = await msg.quoted.download();
-      const inputPath = path.join(__dirname, "input.mp3");
-      const outputPath = path.join(__dirname, "nightcore.mp3");
+      // Download the quoted audio
+      const buffer = await sock.downloadMediaMessage({ message: quoted });
+      const inputFile = path.join(__dirname, "input.mp3");
+      const outputFile = path.join(__dirname, "nightcore.mp3");
+      fs.writeFileSync(inputFile, buffer);
 
-      fs.writeFileSync(inputPath, buffer);
-
-      // 🟢 Use ffmpeg directly (Python no longer needed)
-      // Speed up ~1.25x and pitch shift
-      const cmd = `ffmpeg -y -i "${inputPath}" -filter_complex "asetrate=44100*1.25,atempo=1.1" "${outputPath}"`;
-
-      exec(cmd, async (err) => {
+      // Apply Nightcore effect (1.25x speed + 1.2 pitch shift)
+      exec(`ffmpeg -i ${inputFile} -filter:a "asetrate=44100*1.25,atempo=1.1" ${outputFile}`, async (err) => {
         if (err) {
-          console.error("❌ FFmpeg Nightcore Error:", err);
-          return await sock.sendMessage(msg.key.remoteJid, { text: "❌ Nightcore failed." }, { quoted: msg });
+          console.error(err);
+          return sock.sendMessage(msg.key.remoteJid, { text: "❌ Failed to process Nightcore." }, { quoted: msg });
         }
 
-        const audio = fs.readFileSync(outputPath);
-        await sock.sendMessage(
-          msg.key.remoteJid,
-          { audio: audio, mimetype: "audio/mp4", ptt: false },
-          { quoted: msg }
-        );
+        const audio = fs.readFileSync(outputFile);
+        await sock.sendMessage(msg.key.remoteJid, { audio, mimetype: "audio/mp4" }, { quoted: msg });
 
         // Cleanup
-        fs.unlinkSync(inputPath);
-        fs.unlinkSync(outputPath);
+        fs.unlinkSync(inputFile);
+        fs.unlinkSync(outputFile);
       });
     } catch (e) {
       console.error(e);
-      await sock.sendMessage(msg.key.remoteJid, { text: "❌ Error while processing Nightcore." }, { quoted: msg });
+      sock.sendMessage(msg.key.remoteJid, { text: "❌ Error processing Nightcore." }, { quoted: msg });
     }
   },
 };
