@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     build-essential \
     python3 \
+    python3-distutils \
+    python3-apt \
     pkg-config \
     ffmpeg \
     libcairo2-dev \
@@ -29,15 +31,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 \
     xdg-utils \
     curl \
-    software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
-# 🔥 Upgrade Python to 3.10 (yt-dlp needs >=3.10 for stability)
-RUN add-apt-repository ppa:deadsnakes/ppa -y \
-    && apt-get update \
-    && apt-get install -y python3.10 python3.10-distutils \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 \
-    && rm -rf /var/lib/apt/lists/*
+# 🔥 Force Python 3.10 as default (Bullseye ships 3.9, we need 3.10+)
+RUN apt-get update && apt-get install -y python3.10 python3.10-distutils && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 2 && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install yt-dlp (latest) manually
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
