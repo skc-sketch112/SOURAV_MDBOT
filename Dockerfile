@@ -1,9 +1,9 @@
 # ===== WhatsApp Userbot Dockerfile =====
-FROM node:20.9.0-slim
+FROM node:20.9.0-bullseye-slim
 
 WORKDIR /usr/src/app
 
-# Install runtime dependencies + Puppeteer libs
+# Install runtime + build dependencies for canvas, ffmpeg, sharp
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     openssh-client \
@@ -12,7 +12,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     pkg-config \
     ffmpeg \
-    libvips-dev \
     libcairo2-dev \
     libpango1.0-dev \
     libjpeg-dev \
@@ -35,14 +34,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
+# Install Node dependencies
 RUN npm install --legacy-peer-deps
 
-# Copy app source
+# Copy bot source
 COPY . .
 
 # Expose port for keep-alive server
 EXPOSE 10000
+
+# Persistent auth folder
+VOLUME ["/usr/src/app/auth"]
 
 # Start the bot
 CMD ["node", "index.js"]
