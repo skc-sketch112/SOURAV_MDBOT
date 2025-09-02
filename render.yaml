@@ -2,10 +2,10 @@ services:
   - type: web
     name: whatsapp-userbot
     env: docker
-    plan: starter
+    plan: free          # ✅ Free tier
     autoDeploy: true
     dockerfilePath: Dockerfile
-    buildCommand: ""        
+    buildCommand: ""    # Dockerfile handles install
     envVars:
       - key: PORT
         value: "10000"
