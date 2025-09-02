@@ -5,12 +5,8 @@ services:
     plan: starter
     autoDeploy: true
     dockerfilePath: Dockerfile
-    buildCommand: ""        # Dockerfile handles install
+    buildCommand: ""        
     startCommand: "node index.js"
     envVars:
       - key: PORT
         value: "10000"
-    persistentVolumes:
-      - volumeName: whatsapp-auth
-        mountPath: /usr/src/app/auth
-        sizeGB: 1
