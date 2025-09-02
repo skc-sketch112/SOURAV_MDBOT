@@ -5,9 +5,11 @@ services:
     plan: starter
     autoDeploy: true
     dockerfilePath: Dockerfile
-    buildCommand: ""
+    buildCommand: ""        # Dockerfile handles install
+    startCommand: "node index.js"
     envVars:
       - key: PORT
         value: "10000"
-      - key: WHATSAPP_SESSION
-        value: "your-session-key"
+    persistentVolumes:
+      - mountPath: /usr/src/app/auth
+        sizeGB: 1           # Keeps WhatsApp session alive
