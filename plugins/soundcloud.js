@@ -3,58 +3,53 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports = {
-    name: "soundcloud",
-    command: ["sc", "soundcloud"],
-    description: "Download full SoundCloud songs (link or search term)",
+  name: "soundcloud",
+  command: ["sc", "soundcloud"],
+  description: "Download SoundCloud audio (text or link)",
 
-    async execute(sock, m, args) {
-        const jid = m.key.remoteJid;
-        if (!args.length) {
-            return await sock.sendMessage(
-                jid,
-                { text: "⚠️ Provide a SoundCloud link or song name!" },
-                { quoted: m }
-            );
-        }
+  async execute(sock, m, args) {
+    const jid = m.key.remoteJid;
+    if (!args.length)
+      return await sock.sendMessage(jid, { text: "⚠️ Provide a SoundCloud link or track name!" }, { quoted: m });
 
-        const query = args.join(" ");
-        const tempFile = path.join("/tmp", `${Date.now()}.mp3`);
+    const query = args.join(" ");
+    const tempFile = path.join("/tmp", `${Date.now()}.mp3`);
 
-        await sock.sendMessage(jid, { text: "🎶 Fetching audio, please wait..." }, { quoted: m });
+    try {
+      // Notify user
+      await sock.sendMessage(jid, { text: `🔄 Downloading from SoundCloud...\n🎵 ${query}` }, { quoted: m });
 
-        // If not a URL, search on SoundCloud
-        const source = query.startsWith("http") ? query : `scsearch1:${query}`;
-
-        // yt-dlp must use -o template for file name
-        exec(`yt-dlp -x --audio-format mp3 -o "${tempFile}" "${source}"`, async (err) => {
-            if (err) {
-                console.error("yt-dlp error:", err);
-                return await sock.sendMessage(
-                    jid,
-                    { text: "❌ Failed to fetch audio. Try another song or link." },
-                    { quoted: m }
-                );
+      // Run yt-dlp
+      await new Promise((resolve, reject) => {
+        exec(
+          `yt-dlp -x --audio-format mp3 -o "${tempFile}" "scsearch1:${query}"`,
+          (error, stdout, stderr) => {
+            if (error) {
+              console.error("yt-dlp error:", stderr || error.message);
+              return reject("❌ Failed to download track.");
             }
+            resolve(stdout);
+          }
+        );
+      });
 
-            try {
-                await sock.sendMessage(
-                    jid,
-                    {
-                        audio: fs.createReadStream(tempFile),
-                        mimetype: "audio/mpeg"
-                    },
-                    { quoted: m }
-                );
+      // Check if file exists and not empty
+      if (!fs.existsSync(tempFile) || fs.statSync(tempFile).size < 1024 * 50) {
+        return await sock.sendMessage(jid, { text: "❌ No valid audio found." }, { quoted: m });
+      }
 
-                fs.unlinkSync(tempFile); // cleanup
-            } catch (e) {
-                console.error("Send error:", e);
-                await sock.sendMessage(
-                    jid,
-                    { text: "⚠️ Error while sending audio." },
-                    { quoted: m }
-                );
-            }
-        });
+      // Send audio
+      await sock.sendMessage(jid, {
+        audio: { url: tempFile },
+        mimetype: "audio/mpeg",
+        ptt: false,
+      }, { quoted: m });
+
+      // Cleanup
+      fs.unlinkSync(tempFile);
+    } catch (err) {
+      console.error("SoundCloud plugin error:", err);
+      await sock.sendMessage(jid, { text: "❌ Error while processing audio." }, { quoted: m });
     }
+  }
 };
