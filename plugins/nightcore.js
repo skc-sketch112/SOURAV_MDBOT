@@ -1,93 +1,69 @@
 const { exec } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const ytdlp = require("yt-dlp-exec");
+const scdl = require("soundcloud-downloader").default;
+const axios = require("axios");
+const { JioSaavn } = require("jiosaavn");
+
+const saavn = new JioSaavn();
 
 module.exports = {
   name: "nightcore",
   alias: ["nc", "night"],
-  desc: "Transform song into Nightcore (pitched & speeded up)",
-  category: "media",
-  usage: ".nightcore <song name>",
-
+  desc: "Convert any song from SoundCloud or JioSaavn into Nightcore",
+  category: "music",
+  usage: ".nightcore song_name",
   async execute(sock, msg, args) {
+    if (!args[0]) return msg.reply("🎵 Give me a song name or SoundCloud link!");
+
+    const query = args.join(" ");
+    const tempFile = path.join(__dirname, `../temp/${Date.now()}.mp3`);
+    const ncFile = path.join(__dirname, `../temp/${Date.now()}_nightcore.mp3`);
+
     try {
-      if (!args.length) {
-        return sock.sendMessage(
-          msg.key.remoteJid,
-          { text: "⚠️ Usage: `.nightcore <song name>`" },
-          { quoted: msg }
-        );
+      let audioUrl;
+
+      // 🔹 Check if it's a SoundCloud link
+      if (query.includes("soundcloud.com")) {
+        audioUrl = await scdl.getDownloadURL(query);
+      } else {
+        // 🔹 Otherwise fetch from JioSaavn
+        const res = await saavn.search(query);
+        if (!res.data[0]) return msg.reply("❌ Song not found on JioSaavn!");
+        const song = await saavn.getSong(res.data[0].id);
+        audioUrl = song.downloadUrl.pop().link;
       }
 
-      const query = args.join(" ");
-      const rawFile = path.join(__dirname, "raw_song.mp3");
-      const nightcoreFile = path.join(__dirname, "nightcore.mp3");
+      // Download original song
+      const { data } = await axios.get(audioUrl, { responseType: "arraybuffer" });
+      fs.writeFileSync(tempFile, data);
 
-      await sock.sendMessage(
-        msg.key.remoteJid,
-        { text: `⏳ Fetching & transforming *${query}* to Nightcore...` },
-        { quoted: msg }
-      );
-
-      // Step 1: Download audio
-      const dlCmd = `yt-dlp -x --audio-format mp3 -o "${rawFile}" "ytsearch1:${query}"`;
-
-      exec(dlCmd, (dlErr, stdout, stderr) => {
-        if (dlErr) {
-          console.error("yt-dlp error:", stderr);
-          return sock.sendMessage(
-            msg.key.remoteJid,
-            { text: "❌ Failed to fetch song." },
-            { quoted: msg }
-          );
-        }
-
-        // Step 2: Apply Nightcore effect (speed + pitch)
-        // atempo: 1.25 => 25% faster, asetrate => higher pitch
-        const ffmpegCmd = `ffmpeg -y -i "${rawFile}" -filter:a "asetrate=48000*1.25,atempo=1.25" "${nightcoreFile}"`;
-
-        exec(ffmpegCmd, async (ffErr, ffStdout, ffStderr) => {
-          if (ffErr) {
-            console.error("ffmpeg error:", ffStderr);
-            return sock.sendMessage(
-              msg.key.remoteJid,
-              { text: "❌ Error processing Nightcore." },
-              { quoted: msg }
-            );
+      // Apply Nightcore effect (speed up + pitch shift)
+      await new Promise((resolve, reject) => {
+        exec(
+          `ffmpeg -i "${tempFile}" -filter:a "asetrate=44100*1.25,aresample=44100" "${ncFile}" -y`,
+          (err) => {
+            if (err) reject(err);
+            else resolve();
           }
-
-          try {
-            const audio = fs.readFileSync(nightcoreFile);
-            await sock.sendMessage(
-              msg.key.remoteJid,
-              {
-                audio,
-                mimetype: "audio/mpeg",
-                ptt: false,
-                fileName: `nightcore-${query}.mp3`,
-              },
-              { quoted: msg }
-            );
-
-            fs.unlinkSync(rawFile);
-            fs.unlinkSync(nightcoreFile);
-          } catch (err) {
-            console.error("File send error:", err);
-            sock.sendMessage(
-              msg.key.remoteJid,
-              { text: "❌ Error sending Nightcore file." },
-              { quoted: msg }
-            );
-          }
-        });
+        );
       });
-    } catch (e) {
-      console.error("Nightcore crashed:", e);
-      sock.sendMessage(
-        msg.key.remoteJid,
-        { text: "❌ Nightcore crashed: " + e.message },
-        { quoted: msg }
-      );
+
+      // Send back Nightcore version
+      await sock.sendMessage(msg.key.remoteJid, {
+        audio: fs.readFileSync(ncFile),
+        mimetype: "audio/mpeg",
+        fileName: `Nightcore-${query}.mp3`,
+      }, { quoted: msg });
+
+      // Cleanup
+      fs.unlinkSync(tempFile);
+      fs.unlinkSync(ncFile);
+
+    } catch (err) {
+      console.error(err);
+      msg.reply("⚠️ Error processing Nightcore track!");
     }
-  },
+  }
 };
