@@ -29,6 +29,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 \
     xdg-utils \
     curl \
+    software-properties-common \
+    && rm -rf /var/lib/apt/lists/*
+
+# 🔥 Upgrade Python to 3.10 (yt-dlp needs >=3.10 for stability)
+RUN add-apt-repository ppa:deadsnakes/ppa -y \
+    && apt-get update \
+    && apt-get install -y python3.10 python3.10-distutils \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install yt-dlp (latest) manually
