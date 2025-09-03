@@ -22,15 +22,9 @@ module.exports = {
     const rawFile = path.join(__dirname, "raw_songv.mp4");
     const finalFile = path.join(__dirname, "songv_trimmed.mp4");
 
-    // Helper to send/edit messages
-    const sendText = async (text, key = msg.key) => {
-      return sock.sendMessage(msg.key.remoteJid, { text }, { quoted: msg });
-    };
+    const sendText = async (text) => sock.sendMessage(msg.key.remoteJid, { text }, { quoted: msg });
 
-    // Initial message
-    const sentMsg = await sock.sendMessage(msg.key.remoteJid, {
-      text: `⏳ Fetching video for *${query}* ...`
-    });
+    const sentMsg = await sendText(`⏳ Fetching video for *${query}* ...`);
 
     // Loader animation
     const frames = [
@@ -39,64 +33,53 @@ module.exports = {
       `⏳ Fetching video for *${query}* ...`,
       `⏳ Fetching video for *${query}* ....`
     ];
-
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 12; i++) {
       await new Promise(r => setTimeout(r, 400));
-      await sock.sendMessage(msg.key.remoteJid, {
-        edit: sentMsg.key,
-        text: frames[i % frames.length]
-      });
+      await sock.sendMessage(msg.key.remoteJid, { edit: sentMsg.key, text: frames[i % frames.length] });
     }
 
-    // Download video function
-    const downloadVideo = () => {
-      return new Promise((resolve, reject) => {
-        const cmd = `yt-dlp -f "best[ext=mp4]" -o "${rawFile.replace(/\\/g, "/")}" "ytsearch1:${query}"`;
-        exec(cmd, { maxBuffer: 1024 * 1024 * 200 }, (err, stdout, stderr) => {
-          if (err) return reject(stderr || err.message);
-          resolve(stdout);
-        });
+    // Download video function with geo-bypass and safe options
+    const downloadVideo = () => new Promise((resolve, reject) => {
+      const cmd = `yt-dlp --geo-bypass --no-check-certificate -f "best[ext=mp4]" -o "${rawFile.replace(/\\/g, "/")}" "ytsearch1:${query}"`;
+      exec(cmd, { maxBuffer: 1024 * 1024 * 300 }, (err, stdout, stderr) => {
+        if (err) return reject(stderr || err.message);
+        resolve(stdout);
       });
-    };
+    });
 
-    // Check video duration and trim if needed
-    const trimIfNeeded = () => {
-      return new Promise((resolve, reject) => {
-        const cmdDuration = `ffprobe -v error -select_streams v:0 -show_entries stream=duration -of csv=p=0 "${rawFile.replace(/\\/g, "/")}"`;
-        exec(cmdDuration, (err, stdout, stderr) => {
-          if (err) return reject(stderr || err.message);
+    // Trim if over 5 minutes
+    const trimIfNeeded = () => new Promise((resolve, reject) => {
+      const cmdDuration = `ffprobe -v error -select_streams v:0 -show_entries stream=duration -of csv=p=0 "${rawFile.replace(/\\/g, "/")}"`;
+      exec(cmdDuration, (err, stdout) => {
+        if (err) return reject(err.message);
+        const duration = parseFloat(stdout);
+        if (isNaN(duration)) return reject("Could not get video duration");
 
-          const duration = parseFloat(stdout);
-          if (isNaN(duration)) return reject("Could not get video duration");
-
-          // If duration > 300 seconds (5 min), trim
-          if (duration > 300) {
-            const cmdTrim = `ffmpeg -y -i "${rawFile.replace(/\\/g, "/")}" -t 300 -c copy "${finalFile.replace(/\\/g, "/")}"`;
-            exec(cmdTrim, { maxBuffer: 1024 * 1024 * 200 }, (err2) => {
-              if (err2) return reject(err2.message);
-              resolve();
-            });
-          } else {
-            // If duration <= 5 min, just copy rawFile to finalFile
-            fs.copyFileSync(rawFile, finalFile);
+        if (duration > 300) {
+          const cmdTrim = `ffmpeg -y -i "${rawFile.replace(/\\/g, "/")}" -t 300 -c copy "${finalFile.replace(/\\/g, "/")}"`;
+          exec(cmdTrim, { maxBuffer: 1024 * 1024 * 300 }, (err2) => {
+            if (err2) return reject(err2.message);
             resolve();
-          }
-        });
+          });
+        } else {
+          fs.copyFileSync(rawFile, finalFile);
+          resolve();
+        }
       });
-    };
+    });
 
     try {
       await downloadVideo();
     } catch (dlErr) {
       console.error("yt-dlp error:", dlErr);
-      return sendText("❌ Failed to fetch video. Try another song.");
+      return sendText("❌ Failed to fetch video. Check network or yt-dlp installation.");
     }
 
     try {
       await trimIfNeeded();
     } catch (trimErr) {
       console.error("Video processing error:", trimErr);
-      return sendText("❌ Error processing video.");
+      return sendText("❌ Error trimming video.");
     }
 
     try {
@@ -111,7 +94,6 @@ module.exports = {
       console.error("File send error:", fileErr);
       return sendText("❌ Error sending video.");
     } finally {
-      // Clean up temp files safely
       [rawFile, finalFile].forEach(file => {
         try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
       });
