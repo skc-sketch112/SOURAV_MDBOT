@@ -16,13 +16,18 @@ module.exports = {
       const bannerPath = path.join(__dirname, "assets", "pong.png");
       const bannerBuffer = fs.readFileSync(bannerPath);
 
-      // Send initial message with image + loading text (this is the message we will edit)
+      // Send initial message with image + text
       const sentMsg = await sock.sendMessage(msg.key.remoteJid, {
         image: bannerBuffer,
         caption: "⚡ Initializing..."
       });
 
-      // Loader animation (single message edits)
+      // Add reaction once
+      await sock.sendMessage(msg.key.remoteJid, {
+        react: { text: "⚡", key: msg.key }
+      });
+
+      // Loader animation
       const frames = [
         "⚡ Checking Ping .",
         "⚡ Checking Ping ..",
@@ -30,12 +35,11 @@ module.exports = {
         "⚡ Checking Ping ......"
       ];
 
-      // Animate 4 full cycles (16 edits) in the same message
       for (let i = 0; i < 16; i++) {
         await new Promise(res => setTimeout(res, 400));
         await sock.sendMessage(msg.key.remoteJid, {
           edit: sentMsg.key,
-          image: bannerBuffer, // Keep image to allow editing
+          image: bannerBuffer,
           caption: frames[i % frames.length]
         });
       }
@@ -61,7 +65,7 @@ module.exports = {
 ⚡ Join Channel : https://whatsapp.com/channel/0029VbB1XJ5FHWpuK4r8LV3A ⚡
       `;
 
-      // Final edit with image + styled text (same message)
+      // Final edit with image + styled text
       await sock.sendMessage(msg.key.remoteJid, {
         edit: sentMsg.key,
         image: bannerBuffer,
