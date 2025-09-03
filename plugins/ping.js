@@ -1,64 +1,74 @@
 const { performance } = require("perf_hooks");
 const os = require("os");
+const fs = require("fs");
+const path = require("path");
 
 module.exports = {
   name: "ping",
   alias: ["p"],
-  desc: "Check bot status & ping",
+  desc: "⚡ Check bot status & ping ⚡",
   category: "general",
   usage: ".ping",
   async execute(sock, msg, args) {
     try {
       const start = performance.now();
 
-      // Initial msg
+      // Initial message
       const sentMsg = await sock.sendMessage(msg.key.remoteJid, {
-        text: "⚡ Initializing ping..."
+        text: "⚡ Initializing..."
       });
 
-      // Animate loading (edit same msg instead of sending new msgs)
-      const frames = ["⚡ Pinging", "⚡ Pinging.", "⚡ Pinging..", "⚡ Pinging..."];
-      for (let i = 0; i < frames.length; i++) {
-        await new Promise(res => setTimeout(res, 450));
+      // Loader animation (edited in the same msg)
+      const frames = [
+        "⚡ Checking Ping",
+        "⚡ Checking Ping.",
+        "⚡ Checking Ping..",
+        "⚡ Checking Ping..."
+      ];
+      for (let i = 0; i < 6; i++) {
+        await new Promise(res => setTimeout(res, 500));
         await sock.sendMessage(msg.key.remoteJid, {
           edit: sentMsg.key,
-          text: frames[i]
+          text: frames[i % frames.length]
         });
       }
 
-      // Stats
+      // Calculate stats
       const end = performance.now();
       const ping = Math.round(end - start);
       const uptime = process.uptime();
       const uptimeStr = new Date(uptime * 1000).toISOString().substr(11, 8);
-      const version = "4.0.0";
+      const version = "⚡ 4.0.0 ⚡";
 
-      // Styled ping text
-      const pingGlow = `🔥 ${ping} ms 🔥`;
-
-      // Final result
+      // 🔥 Styled text
       const styledMsg = `
-╭━━━〔 ✨ *SOURAV_MD V4* ✨ 〕━━━╮
+╭━━━〔 ⚡ *SOURAV_MD BOT ALIVE* ⚡ 〕━━━╮
 
-┣ 🚀 *Version* : ${version}
-┣ ⏱ *Uptime*  : ${uptimeStr}
-┣ 💻 *Host*    : ${os.hostname()}
-┣ 🟢 *Status*  : ✅ Working Fine
-┣ 📡 *Ping*    : ${pingGlow}
+┣ ⚡ *Version* : ${version}
+┣ ⚡ *Uptime*  : ${uptimeStr}
+┣ ⚡ *Host*    : render
+┣ ⚡ *Status*  : ✅ Working Fine
+┣ ⚡ *Ping*    : 🔥 ${ping} ms 🔥
 
 ╰━━━━━━━━━━━━━━━━━━━━━━╯
-⚡ Powered by *SOURAV_MD*
+⚡ Join Channel : https://whatsapp.com/channel/0029VbB1XJ5FHWpuK4r8LV3A ⚡
       `;
 
-      // Edit last frame into styled result
+      // Path to PONG banner image (saved in /assets)
+      const bannerPath = path.join(__dirname, "assets", "pong.png");
+
+      // Final edit with banner + text
       await sock.sendMessage(msg.key.remoteJid, {
         edit: sentMsg.key,
-        text: styledMsg
+        image: fs.readFileSync(bannerPath),
+        caption: styledMsg
       });
 
     } catch (err) {
-      console.error("Ping command error:", err);
-      await sock.sendMessage(msg.key.remoteJid, { text: "❌ Error in .ping command!" });
+      console.error("⚡ Ping command error:", err);
+      await sock.sendMessage(msg.key.remoteJid, {
+        text: "⚡ ❌ Error in .ping command!"
+      });
     }
   }
 };
