@@ -51,7 +51,6 @@
     "sharp": "0.32.6",
     "path": "0.12.7",
     "proxy-agent": "6.4.0",
-    "yt-dlp-exec": "1.1.2"
   },
   "devDependencies": {
     "nodemon": "3.1.0",
