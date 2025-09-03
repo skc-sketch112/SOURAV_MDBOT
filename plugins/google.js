@@ -1,9 +1,10 @@
-const ddg = require("duckduckgo-search");
+const axios = require("axios");
+const cheerio = require("cheerio");
 
 module.exports = {
   name: "google",
   alias: ["gsearch", "goog"],
-  desc: "Search Google (DuckDuckGo free) and get unlimited results",
+  desc: "Search the web (Free, unlimited) and get results",
   category: "search",
   usage: ".google <query>",
 
@@ -22,37 +23,27 @@ module.exports = {
     // Send initial loader message
     const sentMsg = await sendText(`⏳ Searching for: *${query}* ...`);
 
-    // Loader animation frames
-    const frames = [
-      `⏳ Searching for: *${query}* .`,
-      `⏳ Searching for: *${query}* ..`,
-      `⏳ Searching for: *${query}* ...`,
-      `⏳ Searching for: *${query}* ....`
-    ];
-
-    for (let i = 0; i < 8; i++) {
-      await new Promise(r => setTimeout(r, 400));
-      await sock.sendMessage(msg.key.remoteJid, {
-        edit: sentMsg.key,
-        text: frames[i % frames.length]
-      });
-    }
-
     try {
-      // Perform DuckDuckGo search
-      const results = await ddg.search(query, { moderate: true, retries: 2, max_results: 10 });
+      const searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
+      const { data } = await axios.get(searchUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+      const $ = cheerio.load(data);
 
-      if (!results || results.length === 0) {
-        return sendText("❌ No results found.");
-      }
+      const results = [];
+      $("li.b_algo h2 a").each((i, el) => {
+        if (i >= 10) return; // limit to 10 results
+        results.push({
+          title: $(el).text(),
+          url: $(el).attr("href")
+        });
+      });
 
-      // Build message text
+      if (!results.length) return sendText("❌ No results found.");
+
       let msgText = `🔎 Search Results for *${query}*:\n\n`;
       results.forEach((r, i) => {
-        msgText += `*${i + 1}.* ${r.title}\n${r.snippet || ""}\n${r.url}\n\n`;
+        msgText += `*${i + 1}.* ${r.title}\n${r.url}\n\n`;
       });
 
-      // Send final results
       await sock.sendMessage(msg.key.remoteJid, {
         edit: sentMsg.key,
         text: msgText
