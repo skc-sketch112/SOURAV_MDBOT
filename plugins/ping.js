@@ -12,12 +12,14 @@ module.exports = {
     try {
       const start = performance.now();
 
-      // Send initial message with reaction
+      // Path to banner image
+      const bannerPath = path.join(__dirname, "assets", "pong.png");
+      const bannerBuffer = fs.readFileSync(bannerPath);
+
+      // Send initial message with image + loading text (this is the message we will edit)
       const sentMsg = await sock.sendMessage(msg.key.remoteJid, {
-        text: "⚡ Initializing..."
-      });
-      await sock.sendMessage(msg.key.remoteJid, {
-        react: { text: "⚡", key: msg.key }
+        image: bannerBuffer,
+        caption: "⚡ Initializing..."
       });
 
       // Loader animation (single message edits)
@@ -33,7 +35,8 @@ module.exports = {
         await new Promise(res => setTimeout(res, 400));
         await sock.sendMessage(msg.key.remoteJid, {
           edit: sentMsg.key,
-          text: frames[i % frames.length]
+          image: bannerBuffer, // Keep image to allow editing
+          caption: frames[i % frames.length]
         });
       }
 
@@ -44,7 +47,7 @@ module.exports = {
       const uptimeStr = new Date(uptime * 1000).toISOString().substr(11, 8);
       const version = "⚡ 4.0.0 ⚡";
 
-      // Final styled message with bold labels
+      // Final styled message
       const styledMsg = `
 ╭━━━〔 ⚡ *SOURAV_MD BOT ALIVE* ⚡ 〕━━━╮
 
@@ -58,13 +61,10 @@ module.exports = {
 ⚡ Join Channel : https://whatsapp.com/channel/0029VbB1XJ5FHWpuK4r8LV3A ⚡
       `;
 
-      // Path to banner image
-      const bannerPath = path.join(__dirname, "assets", "pong.png");
-
-      // Final edit with image + styled text (still SAME message)
+      // Final edit with image + styled text (same message)
       await sock.sendMessage(msg.key.remoteJid, {
         edit: sentMsg.key,
-        image: fs.readFileSync(bannerPath),
+        image: bannerBuffer,
         caption: styledMsg
       });
 
