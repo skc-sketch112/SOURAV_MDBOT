@@ -6,10 +6,11 @@ WORKDIR /usr/src/app
 # Install runtime + build dependencies for canvas, ffmpeg, sharp, puppeteer, yt-dlp
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
-    openssh-client \
-    ca-certificates \
+    curl \
     build-essential \
     python3 \
+    python3-pip \
+    python3-dev \
     python3-distutils \
     python3-apt \
     pkg-config \
@@ -30,7 +31,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgbm1 \
     libasound2 \
     xdg-utils \
-    curl \
+    libssl-dev \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Install yt-dlp (latest) manually for all plugins including nightcore.js
@@ -40,7 +42,7 @@ RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
 # Copy package files
 COPY package*.json ./
 
-# Install all Node dependencies in one step (includes jio-saavn, duckduckgo-search)
+# Install Node dependencies (fixed working versions)
 RUN npm install --legacy-peer-deps
 
 # Copy bot source
