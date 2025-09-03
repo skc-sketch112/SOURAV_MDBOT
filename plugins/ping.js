@@ -14,27 +14,26 @@ module.exports = {
 
       // Path to banner image
       const bannerPath = path.join(__dirname, "assets", "pong.png");
+      if (!fs.existsSync(bannerPath)) {
+        return sock.sendMessage(msg.key.remoteJid, { text: "⚠️ Banner image not found!" }, { quoted: msg });
+      }
       const bannerBuffer = fs.readFileSync(bannerPath);
 
-      // Send initial message with image + text
+      // Send initial message (image + caption)
       const sentMsg = await sock.sendMessage(msg.key.remoteJid, {
         image: bannerBuffer,
         caption: "⚡ Initializing..."
       });
 
-      // Add reaction once
-      await sock.sendMessage(msg.key.remoteJid, {
-        react: { text: "⚡", key: msg.key }
-      });
-
-      // Loader animation
+      // Loader animation frames
       const frames = [
         "⚡ Checking Ping .",
         "⚡ Checking Ping ..",
-        "⚡ Checking Ping ....",
-        "⚡ Checking Ping ......"
+        "⚡ Checking Ping ...",
+        "⚡ Checking Ping ...."
       ];
 
+      // Edit the same message repeatedly
       for (let i = 0; i < 16; i++) {
         await new Promise(res => setTimeout(res, 400));
         await sock.sendMessage(msg.key.remoteJid, {
@@ -44,7 +43,7 @@ module.exports = {
         });
       }
 
-      // Calculate stats
+      // Calculate ping & uptime
       const end = performance.now();
       const ping = Math.round(end - start);
       const uptime = process.uptime();
@@ -52,7 +51,7 @@ module.exports = {
       const version = "⚡ 4.0.0 ⚡";
 
       // Final styled message
-      const styledMsg = `
+      const finalMsg = `
 ╭━━━〔 ⚡ *SOURAV_MD BOT ALIVE* ⚡ 〕━━━╮
 
 ┣ ⚡ *Version* : ${version}
@@ -65,11 +64,11 @@ module.exports = {
 ⚡ Join Channel : https://whatsapp.com/channel/0029VbB1XJ5FHWpuK4r8LV3A ⚡
       `;
 
-      // Final edit with image + styled text
+      // Final edit to same message
       await sock.sendMessage(msg.key.remoteJid, {
         edit: sentMsg.key,
         image: bannerBuffer,
-        caption: styledMsg
+        caption: finalMsg
       });
 
     } catch (err) {
