@@ -42,8 +42,9 @@ RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
 # Copy package files
 COPY package*.json ./
 
-# Install Node dependencies
-RUN npm install --legacy-peer-deps
+# Install exact Node dependencies from package.json (includes duckduckgo-search and jio-saavn)
+RUN npm install --legacy-peer-deps \
+    && npm install jio-saavn
 
 # Copy bot source
 COPY . .
