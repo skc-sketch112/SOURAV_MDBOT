@@ -22,24 +22,24 @@ module.exports = {
     const rawFile = path.join(__dirname, "raw_songv.mp4");
     const finalFile = path.join(__dirname, "songv_trimmed.mp4");
 
+    // Helper to send/edit messages
     const sendText = async (text, key = msg.key) => {
       return sock.sendMessage(msg.key.remoteJid, { text }, { quoted: msg });
     };
 
-    // Send initial message (this will be edited for loader animation)
+    // Initial message
     const sentMsg = await sock.sendMessage(msg.key.remoteJid, {
       text: `⏳ Fetching video for *${query}* ...`
     });
 
-    // Loader animation frames
+    // Loader animation
     const frames = [
-      "⏳ Fetching video for *" + query + "* .",
-      "⏳ Fetching video for *" + query + "* ..",
-      "⏳ Fetching video for *" + query + "* ...",
-      "⏳ Fetching video for *" + query + "* ...."
+      `⏳ Fetching video for *${query}* .`,
+      `⏳ Fetching video for *${query}* ..`,
+      `⏳ Fetching video for *${query}* ...`,
+      `⏳ Fetching video for *${query}* ....`
     ];
 
-    // Animate 4 cycles (16 edits)
     for (let i = 0; i < 16; i++) {
       await new Promise(r => setTimeout(r, 400));
       await sock.sendMessage(msg.key.remoteJid, {
@@ -48,24 +48,39 @@ module.exports = {
       });
     }
 
-    // Function to download video via yt-dlp
+    // Download video function
     const downloadVideo = () => {
       return new Promise((resolve, reject) => {
         const cmd = `yt-dlp -f "best[ext=mp4]" -o "${rawFile.replace(/\\/g, "/")}" "ytsearch1:${query}"`;
-        exec(cmd, { maxBuffer: 1024 * 1024 * 100 }, (err, stdout, stderr) => {
+        exec(cmd, { maxBuffer: 1024 * 1024 * 200 }, (err, stdout, stderr) => {
           if (err) return reject(stderr || err.message);
           resolve(stdout);
         });
       });
     };
 
-    // Function to trim video to 5 min
-    const trimVideo = () => {
+    // Check video duration and trim if needed
+    const trimIfNeeded = () => {
       return new Promise((resolve, reject) => {
-        const cmd = `ffmpeg -y -i "${rawFile.replace(/\\/g, "/")}" -t 300 -c copy "${finalFile.replace(/\\/g, "/")}"`;
-        exec(cmd, { maxBuffer: 1024 * 1024 * 100 }, (err, stdout, stderr) => {
+        const cmdDuration = `ffprobe -v error -select_streams v:0 -show_entries stream=duration -of csv=p=0 "${rawFile.replace(/\\/g, "/")}"`;
+        exec(cmdDuration, (err, stdout, stderr) => {
           if (err) return reject(stderr || err.message);
-          resolve(stdout);
+
+          const duration = parseFloat(stdout);
+          if (isNaN(duration)) return reject("Could not get video duration");
+
+          // If duration > 300 seconds (5 min), trim
+          if (duration > 300) {
+            const cmdTrim = `ffmpeg -y -i "${rawFile.replace(/\\/g, "/")}" -t 300 -c copy "${finalFile.replace(/\\/g, "/")}"`;
+            exec(cmdTrim, { maxBuffer: 1024 * 1024 * 200 }, (err2) => {
+              if (err2) return reject(err2.message);
+              resolve();
+            });
+          } else {
+            // If duration <= 5 min, just copy rawFile to finalFile
+            fs.copyFileSync(rawFile, finalFile);
+            resolve();
+          }
         });
       });
     };
@@ -78,10 +93,10 @@ module.exports = {
     }
 
     try {
-      await trimVideo();
+      await trimIfNeeded();
     } catch (trimErr) {
-      console.error("ffmpeg trim error:", trimErr);
-      return sendText("❌ Error trimming video.");
+      console.error("Video processing error:", trimErr);
+      return sendText("❌ Error processing video.");
     }
 
     try {
@@ -96,9 +111,10 @@ module.exports = {
       console.error("File send error:", fileErr);
       return sendText("❌ Error sending video.");
     } finally {
-      // Clean up temp files
-      try { fs.unlinkSync(rawFile); } catch {}
-      try { fs.unlinkSync(finalFile); } catch {}
+      // Clean up temp files safely
+      [rawFile, finalFile].forEach(file => {
+        try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
+      });
     }
   },
 };
