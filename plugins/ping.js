@@ -1,5 +1,4 @@
 const { performance } = require("perf_hooks");
-const os = require("os");
 const fs = require("fs");
 const path = require("path");
 
@@ -13,20 +12,23 @@ module.exports = {
     try {
       const start = performance.now();
 
-      // Initial message
+      // Send initial message and react
       const sentMsg = await sock.sendMessage(msg.key.remoteJid, {
         text: "⚡ Initializing..."
       });
+      await sock.sendMessage(msg.key.remoteJid, {
+        react: { text: "⚡", key: msg.key }
+      });
 
-      // Loader animation (edited in the same msg)
+      // Dynamic loader animation in the same message
       const frames = [
-        "⚡ Checking Ping",
-        "⚡ Checking Ping.",
-        "⚡ Checking Ping..",
-        "⚡ Checking Ping..."
+        "⚡ Checking Ping 💨",
+        "⚡ Checking Ping 💨🔥",
+        "⚡ Checking Ping 🔥💨",
+        "⚡ Checking Ping 💨"
       ];
-      for (let i = 0; i < 6; i++) {
-        await new Promise(res => setTimeout(res, 500));
+      for (let i = 0; i < 8; i++) {
+        await new Promise(res => setTimeout(res, 400)); // faster animation
         await sock.sendMessage(msg.key.remoteJid, {
           edit: sentMsg.key,
           text: frames[i % frames.length]
@@ -40,14 +42,14 @@ module.exports = {
       const uptimeStr = new Date(uptime * 1000).toISOString().substr(11, 8);
       const version = "⚡ 4.0.0 ⚡";
 
-      // 🔥 Styled text
+      // Styled text with bold labels
       const styledMsg = `
 ╭━━━〔 ⚡ *SOURAV_MD BOT ALIVE* ⚡ 〕━━━╮
 
 ┣ ⚡ *Version* : ${version}
 ┣ ⚡ *Uptime*  : ${uptimeStr}
-┣ ⚡ *Host*    : render
-┣ ⚡ *Status*  : ✅ Working Fine
+┣ ⚡ *Host*    : *render*
+┣ ⚡ *Status*  : ✅ *Working Fine*
 ┣ ⚡ *Ping*    : 🔥 ${ping} ms 🔥
 
 ╰━━━━━━━━━━━━━━━━━━━━━━╯
@@ -57,7 +59,7 @@ module.exports = {
       // Path to PONG banner image (saved in /assets)
       const bannerPath = path.join(__dirname, "assets", "pong.png");
 
-      // Final edit with banner + text
+      // Final edit with banner + styled text (all in the same message)
       await sock.sendMessage(msg.key.remoteJid, {
         edit: sentMsg.key,
         image: fs.readFileSync(bannerPath),
