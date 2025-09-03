@@ -1,22 +1,19 @@
 const { exec } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const Saavn = require("jio-saavn");
+const ytdl = require("ytdl-core"); // optional for direct YouTube downloads if needed
 
 module.exports = {
   name: "songv",
   alias: ["sv", "video", "ytv"],
-  desc: "Download song video (MP4, max 5 min safe)",
+  desc: "Download song video/audio (MP4/MP3) with multi-source fallback",
   category: "media",
   usage: ".songv <song name>",
 
   async execute(sock, msg, args) {
-    if (!args.length) {
-      return sock.sendMessage(
-        msg.key.remoteJid,
-        { text: "⚠️ Usage: `.songv <song name>`" },
-        { quoted: msg }
-      );
-    }
+    if (!args.length)
+      return sock.sendMessage(msg.key.remoteJid, { text: "⚠️ Usage: `.songv <song name>`" }, { quoted: msg });
 
     const query = args.join(" ");
     const rawFile = path.join(__dirname, "raw_songv.mp4");
@@ -24,63 +21,75 @@ module.exports = {
 
     const sendText = async (text) => sock.sendMessage(msg.key.remoteJid, { text }, { quoted: msg });
 
-    const sentMsg = await sendText(`⏳ Fetching video for *${query}* ...`);
-
     // Loader animation
-    const frames = [
-      `⏳ Fetching video for *${query}* .`,
-      `⏳ Fetching video for *${query}* ..`,
-      `⏳ Fetching video for *${query}* ...`,
-      `⏳ Fetching video for *${query}* ....`
-    ];
-    for (let i = 0; i < 12; i++) {
-      await new Promise(r => setTimeout(r, 400));
-      await sock.sendMessage(msg.key.remoteJid, { edit: sentMsg.key, text: frames[i % frames.length] });
-    }
+    const sentMsg = await sendText(`⏳ Fetching video for *${query}* ...`);
+    const frames = ["⏳ Fetching .", "⏳ Fetching ..", "⏳ Fetching ...", "⏳ Fetching ...."];
+    let frameIndex = 0;
+    const loaderInterval = setInterval(async () => {
+      frameIndex = (frameIndex + 1) % frames.length;
+      await sock.sendMessage(msg.key.remoteJid, { edit: sentMsg.key, text: frames[frameIndex] });
+    }, 400);
 
-    // Download video function with geo-bypass and safe options
-    const downloadVideo = () => new Promise((resolve, reject) => {
-      const cmd = `yt-dlp --geo-bypass --no-check-certificate -f "best[ext=mp4]" -o "${rawFile.replace(/\\/g, "/")}" "ytsearch1:${query}"`;
-      exec(cmd, { maxBuffer: 1024 * 1024 * 300 }, (err, stdout, stderr) => {
-        if (err) return reject(stderr || err.message);
-        resolve(stdout);
-      });
-    });
-
-    // Trim if over 5 minutes
-    const trimIfNeeded = () => new Promise((resolve, reject) => {
-      const cmdDuration = `ffprobe -v error -select_streams v:0 -show_entries stream=duration -of csv=p=0 "${rawFile.replace(/\\/g, "/")}"`;
-      exec(cmdDuration, (err, stdout) => {
-        if (err) return reject(err.message);
-        const duration = parseFloat(stdout);
-        if (isNaN(duration)) return reject("Could not get video duration");
-
-        if (duration > 300) {
-          const cmdTrim = `ffmpeg -y -i "${rawFile.replace(/\\/g, "/")}" -t 300 -c copy "${finalFile.replace(/\\/g, "/")}"`;
-          exec(cmdTrim, { maxBuffer: 1024 * 1024 * 300 }, (err2) => {
-            if (err2) return reject(err2.message);
+    // Helper: trim videos
+    const trimVideo = () =>
+      new Promise((resolve, reject) => {
+        const cmdDuration = `ffprobe -v error -select_streams v:0 -show_entries stream=duration -of csv=p=0 "${rawFile.replace(/\\/g, "/")}"`;
+        exec(cmdDuration, (err, stdout) => {
+          if (err) return reject(err);
+          const duration = parseFloat(stdout);
+          if (isNaN(duration)) return reject("Could not get duration");
+          if (duration > 300) {
+            const cmdTrim = `ffmpeg -y -i "${rawFile.replace(/\\/g, "/")}" -t 300 -c copy "${finalFile.replace(/\\/g, "/")}"`;
+            exec(cmdTrim, { maxBuffer: 1024 * 1024 * 300 }, (err2) => (err2 ? reject(err2) : resolve()));
+          } else {
+            fs.copyFileSync(rawFile, finalFile);
             resolve();
-          });
-        } else {
-          fs.copyFileSync(rawFile, finalFile);
-          resolve();
-        }
+          }
+        });
       });
-    });
+
+    // Try multiple YouTube search results
+    const tryYouTube = async () => {
+      for (let i = 0; i < 3; i++) {
+        try {
+          const cmd = `yt-dlp --geo-bypass --no-check-certificate -f "best[ext=mp4]" -o "${rawFile.replace(/\\/g, "/")}" "ytsearch${i + 1}:${query}"`;
+          await new Promise((resolve, reject) => exec(cmd, { maxBuffer: 1024 * 1024 * 300 }, (err) => (err ? reject(err) : resolve())));
+          await trimVideo();
+          return true;
+        } catch {}
+      }
+      return false;
+    };
+
+    // Fallback: Saavn
+    const fetchSaavn = async () => {
+      const results = await Saavn.search(query);
+      if (!results || !results[0]) throw new Error("No Saavn results");
+      const songUrl = results[0].media_url;
+      const cmd = `yt-dlp -f best -o "${rawFile.replace(/\\/g, "/")}" "${songUrl}"`;
+      await new Promise((resolve, reject) => exec(cmd, { maxBuffer: 1024 * 1024 * 300 }, (err) => (err ? reject(err) : resolve())));
+      await trimVideo();
+    };
+
+    // Fallback: add Spotify or SoundCloud if desired
+    const fetchSpotifyOrSC = async () => {
+      // Placeholder for future integration
+      throw new Error("Spotify/SoundCloud fallback not yet implemented");
+    };
 
     try {
-      await downloadVideo();
-    } catch (dlErr) {
-      console.error("yt-dlp error:", dlErr);
-      return sendText("❌ Failed to fetch video. Check network or yt-dlp installation.");
+      const ytSuccess = await tryYouTube();
+      if (!ytSuccess) {
+        await sendText("⚠️ YouTube failed, trying Saavn...");
+        await fetchSaavn();
+      }
+    } catch (err) {
+      console.error(err);
+      clearInterval(loaderInterval);
+      return sendText("❌ Failed to fetch video from all sources.");
     }
 
-    try {
-      await trimIfNeeded();
-    } catch (trimErr) {
-      console.error("Video processing error:", trimErr);
-      return sendText("❌ Error trimming video.");
-    }
+    clearInterval(loaderInterval);
 
     try {
       const video = fs.readFileSync(finalFile);
@@ -90,13 +99,15 @@ module.exports = {
         mimetype: "video/mp4",
         caption: `🎬 Video fetched: *${query}* (max 5 min)`
       });
-    } catch (fileErr) {
-      console.error("File send error:", fileErr);
-      return sendText("❌ Error sending video.");
+    } catch (err) {
+      console.error("Send error:", err);
+      await sendText("❌ Error sending video.");
     } finally {
-      [rawFile, finalFile].forEach(file => {
-        try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
+      [rawFile, finalFile].forEach((f) => {
+        try {
+          if (fs.existsSync(f)) fs.unlinkSync(f);
+        } catch {}
       });
     }
-  },
+  }
 };
