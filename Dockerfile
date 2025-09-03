@@ -33,18 +33,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# ✅ Bookworm ships Python 3.11 by default (no need to force install 3.10)
+# Update npm to latest stable
+RUN npm install -g npm@11.5.2
 
-# Install yt-dlp (latest) manually
+# Install yt-dlp (latest) manually for all plugins including nightcore.js
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
     -o /usr/local/bin/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp
 
 # Copy package files
 COPY package*.json ./
 
-# Install exact Node dependencies from package.json (includes duckduckgo-search and jio-saavn)
-RUN npm install --legacy-peer-deps \
-    && npm install jio-saavn
+# Install all Node dependencies in one step (includes jio-saavn, duckduckgo-search)
+RUN npm install --legacy-peer-deps
 
 # Copy bot source
 COPY . .
