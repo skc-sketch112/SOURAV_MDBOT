@@ -22,7 +22,7 @@
     "node-schedule": "2.1.1",
     "gtts": "0.2.1",
     "pdf-lib": "1.17.1",
-    "duckduckgo-search": "^2.0.1"
+    "duckduckgo-search": "^2.0.1",
     "pino": "9.0.0",
     "openai": "4.0.0",
     "qrcode-terminal": "0.12.0",
