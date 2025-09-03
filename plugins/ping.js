@@ -12,7 +12,7 @@ module.exports = {
     try {
       const start = performance.now();
 
-      // Send initial message and react
+      // Send initial message with reaction
       const sentMsg = await sock.sendMessage(msg.key.remoteJid, {
         text: "⚡ Initializing..."
       });
@@ -20,15 +20,17 @@ module.exports = {
         react: { text: "⚡", key: msg.key }
       });
 
-      // Dynamic loader animation in the same message
+      // Loader animation (single message edits)
       const frames = [
-        "⚡ Checking Ping 💨",
-        "⚡ Checking Ping 💨🔥",
-        "⚡ Checking Ping 🔥💨",
-        "⚡ Checking Ping 💨"
+        "⚡ Checking Ping .",
+        "⚡ Checking Ping ..",
+        "⚡ Checking Ping ....",
+        "⚡ Checking Ping ......"
       ];
-      for (let i = 0; i < 8; i++) {
-        await new Promise(res => setTimeout(res, 400)); // faster animation
+
+      // Animate 4 full cycles (16 edits) in the same message
+      for (let i = 0; i < 16; i++) {
+        await new Promise(res => setTimeout(res, 400));
         await sock.sendMessage(msg.key.remoteJid, {
           edit: sentMsg.key,
           text: frames[i % frames.length]
@@ -42,7 +44,7 @@ module.exports = {
       const uptimeStr = new Date(uptime * 1000).toISOString().substr(11, 8);
       const version = "⚡ 4.0.0 ⚡";
 
-      // Styled text with bold labels
+      // Final styled message with bold labels
       const styledMsg = `
 ╭━━━〔 ⚡ *SOURAV_MD BOT ALIVE* ⚡ 〕━━━╮
 
@@ -56,10 +58,10 @@ module.exports = {
 ⚡ Join Channel : https://whatsapp.com/channel/0029VbB1XJ5FHWpuK4r8LV3A ⚡
       `;
 
-      // Path to PONG banner image (saved in /assets)
+      // Path to banner image
       const bannerPath = path.join(__dirname, "assets", "pong.png");
 
-      // Final edit with banner + styled text (all in the same message)
+      // Final edit with image + styled text (still SAME message)
       await sock.sendMessage(msg.key.remoteJid, {
         edit: sentMsg.key,
         image: fs.readFileSync(bannerPath),
