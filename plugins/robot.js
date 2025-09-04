@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const OpenAI = require("openai");
 
-// ✅ OpenAI API key hardcoded
+// ✅ OpenAI API key hardcoded (your key from last code)
 const openai = new OpenAI({
   apiKey: "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"
 });
@@ -36,7 +36,7 @@ module.exports = {
         react: { text: "🤖", key: msg.key }
       });
 
-      // Loader animation editing the same message
+      // Loader animation
       const frames = [
         "🤖 Converting text into robot voice .",
         "🤖 Converting text into robot voice ..",
@@ -52,7 +52,7 @@ module.exports = {
         });
       }
 
-      // Generate robot voice using OpenAI TTS
+      // ✅ Generate robot voice using OpenAI TTS
       const response = await openai.audio.speech.create({
         model: "gpt-4o-mini-tts",
         voice: "alloy", // robot/metallic voice
@@ -63,7 +63,7 @@ module.exports = {
       const buffer = Buffer.from(await response.arrayBuffer());
       fs.writeFileSync(outputPath, buffer);
 
-      // Send voice note editing the same message
+      // Send as voice note
       await sock.sendMessage(msg.key.remoteJid, {
         audio: fs.readFileSync(outputPath),
         mimetype: "audio/mpeg",
@@ -71,7 +71,7 @@ module.exports = {
         caption: "🤖 Your text has been transformed into a robot voice!"
       }, { quoted: msg });
 
-      // Clean temp file
+      // Cleanup
       fs.unlinkSync(outputPath);
 
     } catch (err) {
